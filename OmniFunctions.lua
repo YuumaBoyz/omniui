@@ -1,7 +1,7 @@
 --[[
     FICHIER : OmniFunctions.lua
     UTILITÉ : Moteur Logique (Mouvement, Sniper, Combat, Server Hop & Debug)
-    VERSION : Elite Fusion v3.6 (Clipboard Support)
+    VERSION : Elite Fusion v3.7 (Robust Framework & Clipboard)
 ]]
 
 local HttpService = game:GetService("HttpService")
@@ -41,7 +41,7 @@ LogService.MessageOut:Connect(function(message, messageType)
     end
 end)
 
--- Nouvelle fonction pour le Copier-Coller direct
+-- Fonction pour le Copier-Coller direct (Presse-papier)
 function Functions:CopyLogsToClipboard()
     local success, err = pcall(function()
         local content = "--- OMNI-ELITE DEBUG EXPORT (" .. os.date("%d/%m/%Y %H:%M:%S") .. ") ---\n\n"
@@ -49,7 +49,7 @@ function Functions:CopyLogsToClipboard()
         
         if setclipboard then
             setclipboard(content)
-            -- On tente aussi un export fichier en backup si possible
+            -- Backup fichier si supporté
             if writefile then pcall(function() writefile("OMNI_DEBUG_LOGS.txt", content) end) end
         else
             error("L'exécuteur ne supporte pas setclipboard")
@@ -160,7 +160,16 @@ end
 -- [ 4. MODULE FAST ATTACK & COMBAT ] -- ⚡
 function Functions:EnableFastAttack()
     task.spawn(function()
-        local success, CombatFramework = pcall(require, self.Player.PlayerScripts.CombatFramework)
+        -- On attend activement que le Framework soit chargé par le jeu
+        local playerScripts = self.Player:WaitForChild("PlayerScripts", 10)
+        local combatPath = playerScripts:WaitForChild("CombatFramework", 5)
+        
+        if not combatPath then 
+            warn("⚠️ OMNI-DEBUG : CombatFramework introuvable.")
+            return 
+        end
+
+        local success, CombatFramework = pcall(require, combatPath)
         local _, CameraShaker = pcall(require, game:GetService("ReplicatedStorage").Util.CameraShaker)
         
         if CameraShaker then pcall(function() CameraShaker:Stop() end) end
@@ -169,9 +178,11 @@ function Functions:EnableFastAttack()
         while task.wait() do
             if self.Config.FastAttack then
                 pcall(function()
-                    CombatFramework.activeController.hitboxMagnitude = 50
-                    CombatFramework.activeController.active = true
-                    CombatFramework.activeController.focusStart = 0
+                    if CombatFramework.activeController then
+                        CombatFramework.activeController.hitboxMagnitude = 50
+                        CombatFramework.activeController.active = true
+                        CombatFramework.activeController.focusStart = 0
+                    end
                 end)
             end
         end

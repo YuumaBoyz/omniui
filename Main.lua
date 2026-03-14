@@ -1,7 +1,7 @@
 --[[
     FICHIER : Main.lua
     PROJET  : OMNI-ELITE | BLOX FRUITS
-    VERSION : Elite Fusion v3.6 (Clipboard & Final)
+    VERSION : Elite Fusion v3.7 (Stable & Anti-Crash)
     UTILITÉ : Contrôleur Principal & Liaison Inter-Modules
 ]]
 
@@ -59,7 +59,7 @@ UI:Notify("Système", "Bienvenue ! Vos réglages ont été ***restaurés***. �
 -- [ 3. CRÉATION DE L'INTERFACE ] -- 🎨
 local MainWin = UI:CreateWindow("OMNI-ELITE | BLOX FRUITS")
 
--- Initialisation de la console de logs (Attachée à la Frame principale)
+-- Initialisation de la console de logs
 Logger:Init(MainWin.MainFrame)
 Logger:AddLog("✅ ***Système initialisé.*** Prêt pour la chasse.", Color3.fromRGB(0, 255, 255))
 
@@ -126,7 +126,7 @@ local ConfTab = MainWin:CreateTab("⚙️ Paramètres")
 ConfTab:CreateButton("💾 Force Save Config", function()
     pcall(function()
         Saver:Save(Ops.Config)
-        UI:Notify("Système", "Configuration ***Sauvegardée*** avec succès ! ✅")
+        UI:Notify("Système", "Configuration ***Sauvegardée*** ✅")
         Logger:AddLog("💾 Manuel : Sauvegarde effectuée.", Color3.fromRGB(100, 255, 100))
     end)
 end)
@@ -138,16 +138,15 @@ ConfTab:CreateButton("🚀 Hop New Server", function()
     end)
 end)
 
--- Bouton de Debug mis à jour pour le Copier-Coller direct
+-- Bouton de Debug avec Presse-papier
 ConfTab:CreateButton("📋 Copier les Logs (Presse-papier)", function()
     local success, err = pcall(function() return Ops:CopyLogsToClipboard() end)
     
     if success then
-        UI:Notify("Debug System", "Logs copiés ! Tu peux les coller ici. ✅", 5)
+        UI:Notify("Debug System", "Logs copiés ! ✅", 5)
         Logger:AddLog("📋 ***Presse-papier*** : Logs copiés avec succès.", Color3.fromRGB(0, 255, 150))
     else
         UI:Notify("Erreur", "Impossible de copier : " .. tostring(err), 5)
-        -- Plan B : Si setclipboard échoue, on affiche les logs dans la console F9
         print("--- DEBUG LOGS START ---")
         print(table.concat(Ops.DebugLogs, "\n"))
         print("--- DEBUG LOGS END ---")
@@ -155,9 +154,15 @@ ConfTab:CreateButton("📋 Copier les Logs (Presse-papier)", function()
     end
 end)
 
-ConfTab:CreateDropdown("Priorité de Farm", {"Fruits Uniquement", "Level Uniquement", "Mixte"}, function(selected)
-    Ops.Config.FarmPriority = selected
-    Logger:AddLog("Config : Priorité réglée sur ***" .. selected .. "***", Color3.fromRGB(255, 255, 255))
+-- Remplacement du Dropdown par des boutons pour éviter le crash
+ConfTab:CreateButton("🎯 Priorité : Fruits Uniquement", function()
+    Ops.Config.FarmPriority = "Fruits Uniquement"
+    Logger:AddLog("Config : Priorité réglée sur ***Fruits***", Color3.fromRGB(255, 255, 255))
+end)
+
+ConfTab:CreateButton("🎯 Priorité : Level Uniquement", function()
+    Ops.Config.FarmPriority = "Level Uniquement"
+    Logger:AddLog("Config : Priorité réglée sur ***Level***", Color3.fromRGB(255, 255, 255))
 end)
 
 ConfTab:CreateToggle("Anti-AFK (Permanent)", "AntiAFK", function(state)
@@ -174,7 +179,7 @@ print([[
   ___________________________________________
  /                                           \
 |   ✅ OMNI-ELITE : Système prêt !            |
-|   Version : Elite Fusion v3.6               |
+|   Version : Elite Fusion v3.7               |
  \___________________________________________/
 ]])
 Logger:AddLog("✨ ***OMNI-ELITE est prêt !*** Bonne chasse.", Color3.fromRGB(0, 255, 150))
