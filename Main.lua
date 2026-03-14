@@ -1,8 +1,8 @@
 --[[
     FICHIER : Main.lua
     PROJET  : OMNI-PROJECT | BLOX FRUITS
-    VERSION : v5.5 (Ecosystem Integration)
-    UTILITÉ : Contrôleur Principal & Liaison Inter-Modules
+    VERSION : v5.6 (Fusion Intégrale & Sécurisée)
+    UTILITÉ : Contrôleur Principal + Protection Réseau & Physique
 ]]
 
 -- [ 1. CHARGEMENT SÉCURISÉ IMPÉRATIF ] -- 🛡️
@@ -17,14 +17,16 @@ repeat
     task.wait(0.5) 
 until Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
 
--- [ 2. VÉRIFICATION DES DÉPENDANCES ] -- 🔍
+-- [ 2. VÉRIFICATION DES DÉPENDANCES & GARDIENS ] -- 🔍
 local function CheckGlobals()
     local dependencies = {
         {_G.Library, "OmniUILibrary"},
         {_G.Functions, "OmniFunctions"},
         {_G.SaveManager, "SaveManager"},
         {_G.Logger, "OmniLogger"},
-        {_G.FruitSniper, "FruitSniper"} -- Nouveau module Sniper
+        {_G.FruitSniper, "FruitSniper"},
+        {_G.SafeRemoteFire, "NetworkGuard"},         -- INDISPENSABLE
+        {_G.CanDoubleJump, "CombatPhysicsGuard"}      -- INDISPENSABLE
     }
     
     for _, dep in ipairs(dependencies) do
@@ -40,13 +42,13 @@ if not CheckGlobals() then return end
 
 -- Aliases pour la clarté
 local UI     = _G.Library
-local Ops    = _G.Functions
-local Saver  = _G.SaveManager
+local Ops     = _G.Functions
+local Saver   = _G.SaveManager
 local Logger = _G.Logger
 local Sniper = _G.FruitSniper
 
 -- [ 3. CHARGEMENT ET RESTAURATION ] -- 💾
-UI:ShowLoadingScreen("OMNI-PROJECT : RESTAURATION v5.5...")
+UI:ShowLoadingScreen("OMNI-PROJECT : SÉCURISATION v5.6...")
 
 local savedData = Saver:Load()
 if savedData then
@@ -65,11 +67,11 @@ task.spawn(function()
 end)
 
 -- [ 4. CRÉATION DE L'INTERFACE ] -- 🎨
-local MainWin = UI:CreateWindow("OMNI-ELITE | v5.5")
+local MainWin = UI:CreateWindow("OMNI-ELITE | v5.6 🛡️")
 
 -- Initialisation de la console de logs
 Logger:Init(MainWin.MainFrame)
-Logger:AddLog("✅ ***Moteur v5.5 (Sniper-Ready)*** initialisé.", Color3.fromRGB(0, 255, 255))
+Logger:AddLog("✅ ***Moteur v5.6 (Error-Proof)*** initialisé.", Color3.fromRGB(0, 255, 150))
 
 -- [ 5. ONGLET COMBAT ] -- ⚔️
 local CombatTab = MainWin:CreateTab("⚔️ Combat")
@@ -117,12 +119,16 @@ FarmTab:CreateDropdown("Arme Prioritaire", {"Melee", "Sword", "Blox Fruit"}, fun
     Ops.Config.WeaponType = s
 end)
 
--- [ 7. ONGLET FRUITS (SNIPER) ] -- 🍎
+-- [ 7. ONGLET FRUITS (SÉCURISÉ) ] -- 🍎
 local FruitTab = MainWin:CreateTab("🍎 Fruits")
 
-FruitTab:CreateToggle("Fruit Sniper (Auto-Collect)", "SniperEnabled", function(state)
+FruitTab:CreateToggle("Fruit Sniper (Safe-Collect)", "SniperEnabled", function(state)
     Sniper.Config.Enabled = state
-    Logger:AddLog("Sniper : Détection des fruits " .. (state and "***Active*** 🔍" or "***Mise en veille***."), Color3.fromRGB(255, 100, 100))
+    if state then
+        -- PROTECTION v5.6 : Appel sécurisé du remote
+        _G.SafeRemoteFire("CollectedDragonEgg", true) 
+    end
+    Logger:AddLog("Sniper : Détection " .. (state and "***Active*** 🔍" or "***Veille***."), Color3.fromRGB(255, 100, 100))
 end)
 
 FruitTab:CreateToggle("Auto-Inventory (Store)", "AutoStore", function(state)
@@ -133,15 +139,22 @@ FruitTab:CreateButton("🚀 Force Server Hop", function()
     Ops:SmartHop()
 end)
 
--- [ 8. ONGLET MOUVEMENT ] -- ✈️
+-- [ 8. ONGLET MOUVEMENT (PHYSICS CHECK) ] -- ✈️
 local MoveTab = MainWin:CreateTab("✈️ Mouvement")
 
 MoveTab:CreateSlider("Vitesse Safe-Tween", "Speed", 100, 1000, Ops.Config.Speed or 300, function(value)
     Ops.Config.Speed = value
 end)
 
-MoveTab:CreateToggle("Noclip (Tween-Safe)", "Noclip", function(state)
-    _G.Noclip = state
+MoveTab:CreateToggle("Noclip (Anti-Busy Check)", "Noclip", function(state)
+    -- PROTECTION v5.6 : On ne noclip que si le joueur n'est pas "Busy"
+    if _G.CanDoubleJump() then
+        _G.Noclip = state
+        Logger:AddLog("Mouvement : Noclip " .. (state and "***Actif***" or "***Off***"))
+    else
+        UI:Notify("Système", "Action bloquée : Joueur occupé (Busy)")
+        _G.Noclip = false
+    end
 end)
 
 -- [ 9. PARAMÈTRES & SYSTÈME ] -- ⚙️
@@ -149,16 +162,15 @@ local ConfTab = MainWin:CreateTab("⚙️ Paramètres")
 
 ConfTab:CreateButton("💾 Sauvegarder Config", function()
     Saver:Save(Ops.Config)
-    UI:Notify("Système", "Configuration v5.5 ***Sauvegardée*** ✅")
+    UI:Notify("Système", "Configuration ***v5.6*** sauvegardée ✅")
 end)
 
 ConfTab:CreateButton("🔄 Reset Interface", function()
     UI:Notify("Système", "Rechargement de l'UI...")
     task.wait(0.5)
-    -- Logique de refresh ici si nécessaire
 end)
 
 -- [ 10. FINALISATION ] -- ✨
-UI:Notify("Système", "Protocole ***Omni-Elite*** v5.5 chargé. 🚀")
-Logger:AddLog("✨ ***OMNI-ELITE v5.5 PRÊT !*** Bonne chasse.", Color3.fromRGB(0, 255, 150))
-print("--- [ OMNI-ELITE : V5.5 FINAL ECOSYSTEM INITIALIZED ] ---")
+UI:Notify("Système", "Protocole ***Omni-Elite*** v5.6 chargé. 🚀")
+Logger:AddLog("✨ ***SÉCURITÉ ACTIVE*** : Framework protégé.", Color3.fromRGB(0, 255, 150))
+print("--- [ OMNI-ELITE : V5.6 FINAL ECOSYSTEM INITIALIZED ] ---")

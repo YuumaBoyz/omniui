@@ -1,13 +1,14 @@
 --[[
-    OMNI UI LIBRARY : ELITE EDITION
-    Optimisation : Correction des Tweens & Persistance Native
-    VERSION : 2.1 Fixed (Sync Dropdown Support)
+    OMNI UI LIBRARY : ELITE EDITION (v2.3)
+    MISE À JOUR : Ajout du Multi-Select Dropdown 🔄
+    LOGIQUE : Persistance JSON + ScrollingFrame Auto-Adaptatif
 ]]
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
 
 local Library = {}
 local Player = Players.LocalPlayer
@@ -37,58 +38,18 @@ function Library:Notify(title, text, duration)
     end)
 end
 
--- [ 2. LOADING SCREEN DYNAMIQUE ] -- ⏳
-function Library:ShowLoadingScreen(text)
-    local sg = Instance.new("ScreenGui")
-    sg.Name = "OmniLoadingScreen"
-    local parent = (game:GetService("RunService"):IsStudio() and Player.PlayerGui) or CoreGui
-    sg.Parent = parent
-
-    local bg = Instance.new("Frame", sg)
-    bg.Size = UDim2.new(1, 0, 1, 0)
-    bg.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-    bg.BackgroundTransparency = 0.2
-
-    local title = Instance.new("TextLabel", bg)
-    title.Size = UDim2.new(0, 300, 0, 50)
-    title.Position = UDim2.new(0.5, -150, 0.4, 0)
-    title.Text = text or "OMNI-ELITE INJECTION..."
-    title.TextColor3 = Color3.new(1, 1, 1)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 24
-    title.BackgroundTransparency = 1
-
-    local barBg = Instance.new("Frame", bg)
-    barBg.Size = UDim2.new(0, 400, 0, 10)
-    barBg.Position = UDim2.new(0.5, -200, 0.5, 0)
-    barBg.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
-
-    local barFill = Instance.new("Frame", barBg)
-    barFill.Size = UDim2.new(0, 0, 1, 0)
-    barFill.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-    Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
-
-    local info = TweenInfo.new(3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(barFill, info, {Size = UDim2.new(1, 0, 1, 0)})
-    
-    tween:Play()
-    tween.Completed:Wait()
-    task.wait(0.5)
-    sg:Destroy()
-end
-
--- [ 3. STRUCTURE DE LA FENÊTRE ] -- 🎨
+-- [ 2. STRUCTURE DE LA FENÊTRE ] -- 🎨
 function Library:CreateWindow(titleText)
     local sg = Instance.new("ScreenGui")
     sg.Name = "OmniUI"
-    sg.Parent = (game:GetService("RunService"):IsStudio() and Player.PlayerGui) or CoreGui
+    sg.Parent = (RunService:IsStudio() and Player.PlayerGui) or CoreGui
     sg.ResetOnSpawn = false
 
     local MainFrame = Instance.new("Frame", sg)
     MainFrame.Size = UDim2.new(0, 550, 0, 380)
     MainFrame.Position = UDim2.new(0.5, -275, 0.5, -190)
     MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    MainFrame.BorderSizePixel = 0
     Instance.new("UICorner", MainFrame)
     
     -- Dragging Logic
@@ -119,11 +80,12 @@ function Library:CreateWindow(titleText)
     TitleBar.TextXAlignment = Enum.TextXAlignment.Left
     TitleBar.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
     Instance.new("UICorner", TitleBar)
-
+    
     local TabContainer = Instance.new("Frame", MainFrame)
     TabContainer.Size = UDim2.new(0, 130, 1, -40)
     TabContainer.Position = UDim2.new(0, 0, 0, 40)
     TabContainer.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    TabContainer.BorderSizePixel = 0
 
     local TabList = Instance.new("UIListLayout", TabContainer)
     TabList.SortOrder = Enum.SortOrder.LayoutOrder
@@ -148,16 +110,21 @@ function Library:CreateWindow(titleText)
         TabBtn.BorderSizePixel = 0
 
         local Page = Instance.new("ScrollingFrame", PageContainer)
+        Page.Name = tabName .. "Page"
         Page.Size = UDim2.new(1, 0, 1, 0)
         Page.BackgroundTransparency = 1
-        Page.ScrollBarThickness = 2
+        Page.BorderSizePixel = 0
+        Page.ScrollBarThickness = 4
+        Page.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 150)
         Page.Visible = firstTab
         Page.CanvasSize = UDim2.new(0, 0, 0, 0)
 
         local PageLayout = Instance.new("UIListLayout", Page)
         PageLayout.Padding = UDim.new(0, 8)
+        PageLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        
         PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            Page.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 10)
+            Page.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 20)
         end)
 
         if firstTab then
@@ -181,6 +148,61 @@ function Library:CreateWindow(titleText)
 
         local TabElements = {}
 
+        -- [ 🚀 MULTI-SELECT DROPDOWN ] -- New v2.3
+        function TabElements:CreateMultiDropdown(text, options, configKey)
+            local Config = _G.Functions.Config
+            Config[configKey] = Config[configKey] or {}
+
+            local DropFrame = Instance.new("Frame", Page)
+            DropFrame.Size = UDim2.new(1, -10, 0, 35)
+            DropFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+            Instance.new("UICorner", DropFrame)
+
+            local Label = Instance.new("TextLabel", DropFrame)
+            Label.Size = UDim2.new(1, -40, 1, 0)
+            Label.Position = UDim2.new(0, 10, 0, 0)
+            Label.Text = text .. " (Multi)"
+            Label.TextColor3 = Color3.new(1, 1, 1)
+            Label.Font = Enum.Font.Gotham
+            Label.TextSize = 14
+            Label.TextXAlignment = Enum.TextXAlignment.Left
+            Label.BackgroundTransparency = 1
+
+            local Container = Instance.new("Frame", Page)
+            Container.Size = UDim2.new(1, -20, 0, #options * 32)
+            Container.Visible = false
+            Container.BackgroundTransparency = 1
+            local ContainerLayout = Instance.new("UIListLayout", Container)
+            ContainerLayout.Padding = UDim.new(0, 2)
+
+            local OpenBtn = Instance.new("TextButton", DropFrame)
+            OpenBtn.Size = UDim2.new(1, 0, 1, 0)
+            OpenBtn.BackgroundTransparency = 1
+            OpenBtn.Text = ""
+
+            OpenBtn.Activated:Connect(function()
+                Container.Visible = not Container.Visible
+            end)
+
+            for _, opt in pairs(options) do
+                local OptBtn = Instance.new("TextButton", Container)
+                OptBtn.Size = UDim2.new(1, 0, 0, 30)
+                OptBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+                OptBtn.Text = (Config[configKey][opt] and "✅ " or "") .. opt
+                OptBtn.TextColor3 = Config[configKey][opt] and Color3.new(0, 1, 0.6) or Color3.new(0.8, 0.8, 0.8)
+                OptBtn.Font = Enum.Font.Gotham
+                OptBtn.TextSize = 13
+                Instance.new("UICorner", OptBtn)
+
+                OptBtn.Activated:Connect(function()
+                    Config[configKey][opt] = not Config[configKey][opt]
+                    OptBtn.Text = (Config[configKey][opt] and "✅ " or "") .. opt
+                    OptBtn.TextColor3 = Config[configKey][opt] and Color3.new(0, 1, 0.6) or Color3.new(0.8, 0.8, 0.8)
+                    SafeSave()
+                end)
+            end
+        end
+
         -- [ 🟢 TOGGLE ] --
         function TabElements:CreateToggle(text, configKey, callback)
             local initialValue = GetConfigValue(configKey, false)
@@ -203,15 +225,15 @@ function Library:CreateWindow(titleText)
             Button.Size = UDim2.new(0, 40, 0, 20)
             Button.Position = UDim2.new(0.95, -40, 0.5, -10)
             Button.Text = ""
-            Button.BackgroundColor3 = initialValue and Color3.fromRGB(50, 150, 80) or Color3.fromRGB(150, 50, 50)
+            Button.BackgroundColor3 = initialValue and Color3.fromRGB(0, 255, 120) or Color3.fromRGB(150, 50, 50)
             Instance.new("UICorner", Button).CornerRadius = UDim.new(1, 0)
 
             local state = initialValue
             Button.Activated:Connect(function()
                 state = not state
                 if _G.Functions and _G.Functions.Config then _G.Functions.Config[configKey] = state end
-                TweenService:Create(Button, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-                    BackgroundColor3 = state and Color3.fromRGB(50, 150, 80) or Color3.fromRGB(150, 50, 50)
+                TweenService:Create(Button, TweenInfo.new(0.25, Enum.EasingStyle.Quart), {
+                    BackgroundColor3 = state and Color3.fromRGB(0, 255, 120) or Color3.fromRGB(150, 50, 50)
                 }):Play()
                 pcall(callback, state)
                 SafeSave()
@@ -245,7 +267,7 @@ function Library:CreateWindow(titleText)
             local Fill = Instance.new("Frame", Track)
             local startRatio = math.clamp((initialValue - min) / (max - min), 0, 1)
             Fill.Size = UDim2.new(startRatio, 0, 1, 0)
-            Fill.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+            Fill.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
             Instance.new("UICorner", Fill)
 
             local SliderBtn = Instance.new("TextButton", Track)
@@ -259,9 +281,9 @@ function Library:CreateWindow(titleText)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
             end)
             UserInputService.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
-                    dragging = false
-                    SafeSave() 
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then 
+                    dragging = false 
+                    SafeSave()
                 end
             end)
             UserInputService.InputChanged:Connect(function(input)
@@ -276,7 +298,7 @@ function Library:CreateWindow(titleText)
             end)
         end
 
-        -- [ 🚀 DROPDOWN ] -- (Correction Synchronisée)
+        -- [ 🚀 DROPDOWN ] --
         function TabElements:CreateDropdown(text, options, callback)
             local DropFrame = Instance.new("Frame", Page)
             DropFrame.Size = UDim2.new(1, -10, 0, 35)
@@ -298,11 +320,9 @@ function Library:CreateWindow(titleText)
             OpenBtn.BackgroundTransparency = 1
             OpenBtn.Text = ""
 
-            local isOpened = false
             OpenBtn.Activated:Connect(function()
-                isOpened = not isOpened
-                -- Logique simplifiée : cycle à travers les options pour la stabilité
-                local currentIdx = table.find(options, Label.Text:split(" : ")[2]) or 0
+                local currentOption = Label.Text:split(" : ")[2]
+                local currentIdx = table.find(options, currentOption) or 0
                 local nextIdx = (currentIdx % #options) + 1
                 local selected = options[nextIdx]
                 
