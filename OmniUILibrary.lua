@@ -1,7 +1,7 @@
 --[[
-    OMNI UI LIBRARY : ELITE EDITION (v2.4.1)
+    OMNI UI LIBRARY : ELITE EDITION (v2.4.2)
     LOGIQUE : Persistance JSON + CanvasGroup Animations + Multi-Select + Global Keybind
-    FIX : Robustesse des tables globales (_G)
+    FIX : Robustesse BlocksInteraction + Sécurité des Tables Globales
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -43,13 +43,15 @@ function Library:CreateWindow(titleText)
     sg.Parent = (RunService:IsStudio() and Player.PlayerGui) or CoreGui
     sg.ResetOnSpawn = false
 
-    local MainFrame = Instance.new("CanvasGroup", sg)
+    local MainFrame = Instance.new("CanvasGroup")
+    MainFrame.Name = "MainFrame"
     MainFrame.Size = UDim2.new(0, 550, 0, 380)
     MainFrame.Position = UDim2.new(0.5, -275, 0.5, -190)
     MainFrame.BackgroundColor3 = Theme.Main
     MainFrame.BorderSizePixel = 0
     MainFrame.GroupTransparency = 0
     Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+    MainFrame.Parent = sg -- Parenter à la fin pour éviter les bugs de rendu
     
     local Window = { 
         MainFrame = MainFrame, 
@@ -67,7 +69,10 @@ function Library:CreateWindow(titleText)
                 GroupTransparency = targetTransparency
             }):Play()
 
-            MainFrame.BlocksInteraction = not Window.Visible 
+            -- FIX : Utilisation d'un pcall pour BlocksInteraction
+            pcall(function()
+                MainFrame.BlocksInteraction = not Window.Visible 
+            end)
         end
     end)
 
@@ -140,7 +145,7 @@ function Library:CreateWindow(titleText)
 
         local TabElements = {}
 
-        -- [ 🔄 MULTI-SELECT DROPDOWN SÉCURISÉ ] --
+        -- [ 🔄 MULTI-SELECT DROPDOWN FIX ] --
         function TabElements:CreateMultiDropdown(text, options, configKey)
             if _G.Functions and _G.Functions.Config then
                 _G.Functions.Config[configKey] = _G.Functions.Config[configKey] or {}
@@ -164,9 +169,9 @@ function Library:CreateWindow(titleText)
             OpenBtn.Activated:Connect(function()
                 local isOpening = not Container.Visible
                 Container.Visible = true
-                local targetSize = isOpening and UDim2.new(0.9, 0, 0, ContainerLayout.AbsoluteContentSize.Y + 5) or UDim2.new(0.9, 0, 0, 0)
-                TweenService:Create(Container, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {Size = targetSize}):Play()
-                task.delay(isOpening and 0 or 0.3, function() if not isOpening then Container.Visible = false end end)
+                local targetHeight = isOpening and ContainerLayout.AbsoluteContentSize.Y + 5 or 0
+                TweenService:Create(Container, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {Size = UDim2.new(0.9, 0, 0, targetHeight)}):Play()
+                if not isOpening then task.delay(0.3, function() if not isOpening then Container.Visible = false end end) end
             end)
 
             for _, opt in pairs(options) do
@@ -174,7 +179,6 @@ function Library:CreateWindow(titleText)
                 OptBtn.Size = UDim2.new(1, 0, 0, 30); OptBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
                 Instance.new("UICorner", OptBtn)
 
-                -- Check initial state
                 local isSelected = false
                 if _G.Functions and _G.Functions.Config and _G.Functions.Config[configKey] then
                     isSelected = _G.Functions.Config[configKey][opt] or false
@@ -185,9 +189,8 @@ function Library:CreateWindow(titleText)
 
                 OptBtn.Activated:Connect(function()
                     if _G.Functions and _G.Functions.Config then
-                        local currentTable = _G.Functions.Config[configKey]
-                        currentTable[opt] = not currentTable[opt]
-                        local nowSelected = currentTable[opt]
+                        _G.Functions.Config[configKey][opt] = not _G.Functions.Config[configKey][opt]
+                        local nowSelected = _G.Functions.Config[configKey][opt]
                         OptBtn.Text = (nowSelected and "✅ " or "") .. opt
                         TweenService:Create(OptBtn, TweenInfo.new(0.2), {TextColor3 = nowSelected and Theme.Accent or Color3.fromRGB(200, 200, 200)}):Play()
                         SafeSave()
@@ -196,28 +199,39 @@ function Library:CreateWindow(titleText)
             end
         end
 
-        -- [ 🟢 TOGGLE SÉCURISÉ ] --
+        -- [ 🟢 TOGGLE FIX ] --
         function TabElements:CreateToggle(text, configKey, callback)
-            local initialValue = GetConfigValue(configKey, false)
             local ToggleFrame = Instance.new("Frame", Page)
             ToggleFrame.Size = UDim2.new(0.95, 0, 0, 35); ToggleFrame.BackgroundColor3 = Theme.Element
             Instance.new("UICorner", ToggleFrame)
 
+            local Label = Instance.new("TextLabel", ToggleFrame)
+            Label.Size = UDim2.new(1, -50, 1, 0); Label.Position = UDim2.new(0, 10, 0, 0); Label.Text = text
+            Label.TextColor3 = Theme.Text; Label.Font = Enum.Font.Gotham; Label.TextSize = 14; Label.TextXAlignment = Enum.TextXAlignment.Left; Label.BackgroundTransparency = 1
+
             local Button = Instance.new("TextButton", ToggleFrame)
-            Button.Size = UDim2.new(0, 38, 0, 20); Button.Position = UDim2.new(0.95, -40, 0.5, -10); Button.Text = ""
-            Button.BackgroundColor3 = initialValue and Theme.Accent or Color3.fromRGB(150, 50, 50)
+            Button.Size = UDim2.new(0, 38, 0, 20); Button.Position = UDim2.new(1, -45, 0.5, -10); Button.Text = ""
+            
+            local state = GetConfigValue(configKey, false)
+            Button.BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(150, 50, 50)
             Instance.new("UICorner", Button).CornerRadius = UDim.new(1, 0)
 
-            local state = initialValue
             Button.Activated:Connect(function()
                 state = not state
                 if _G.Functions and _G.Functions.Config then _G.Functions.Config[configKey] = state end
-                TweenService:Create(Button, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {
-                    BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(150, 50, 50)
-                }):Play()
+                TweenService:Create(Button, TweenInfo.new(0.3), {BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(150, 50, 50)}):Play()
                 pcall(callback, state)
                 SafeSave()
             end)
+        end
+
+        -- [ 🔘 SIMPLE BUTTON ] --
+        function TabElements:CreateButton(text, callback)
+            local BtnFrame = Instance.new("TextButton", Page)
+            BtnFrame.Size = UDim2.new(0.95, 0, 0, 35); BtnFrame.BackgroundColor3 = Theme.Element
+            BtnFrame.Text = text; BtnFrame.TextColor3 = Theme.Text; BtnFrame.Font = Enum.Font.Gotham; BtnFrame.TextSize = 14
+            Instance.new("UICorner", BtnFrame)
+            BtnFrame.Activated:Connect(function() pcall(callback) end)
         end
 
         return TabElements
