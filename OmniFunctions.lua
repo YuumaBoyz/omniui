@@ -1,7 +1,7 @@
 --[[
     FICHIER : OmniFunctions.lua
     UTILITÉ : Moteur Logique (Mouvement, Sniper, Combat, Server Hop & Debug)
-    VERSION : Elite Fusion v3.5 (Debug Integrated)
+    VERSION : Elite Fusion v3.6 (Clipboard Support)
 ]]
 
 local HttpService = game:GetService("HttpService")
@@ -41,15 +41,18 @@ LogService.MessageOut:Connect(function(message, messageType)
     end
 end)
 
-function Functions:ExportLogs()
+-- Nouvelle fonction pour le Copier-Coller direct
+function Functions:CopyLogsToClipboard()
     local success, err = pcall(function()
         local content = "--- OMNI-ELITE DEBUG EXPORT (" .. os.date("%d/%m/%Y %H:%M:%S") .. ") ---\n\n"
         content = content .. table.concat(self.DebugLogs, "\n")
         
-        if writefile then
-            writefile("OMNI_DEBUG_LOGS.txt", content)
+        if setclipboard then
+            setclipboard(content)
+            -- On tente aussi un export fichier en backup si possible
+            if writefile then pcall(function() writefile("OMNI_DEBUG_LOGS.txt", content) end) end
         else
-            warn("❌ writefile non supporté par l'exécuteur")
+            error("L'exécuteur ne supporte pas setclipboard")
         end
     end)
     return success, err

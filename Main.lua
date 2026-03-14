@@ -1,7 +1,7 @@
 --[[
     FICHIER : Main.lua
     PROJET  : OMNI-ELITE | BLOX FRUITS
-    VERSION : Elite Fusion v3.5 (Stable & Debug Enabled)
+    VERSION : Elite Fusion v3.6 (Clipboard & Final)
     UTILITÉ : Contrôleur Principal & Liaison Inter-Modules
 ]]
 
@@ -138,15 +138,20 @@ ConfTab:CreateButton("🚀 Hop New Server", function()
     end)
 end)
 
-ConfTab:CreateButton("📄 Exporter la console (Debug)", function()
-    local success, err = pcall(function() return Ops:ExportLogs() end)
+-- Bouton de Debug mis à jour pour le Copier-Coller direct
+ConfTab:CreateButton("📋 Copier les Logs (Presse-papier)", function()
+    local success, err = pcall(function() return Ops:CopyLogsToClipboard() end)
     
     if success then
-        UI:Notify("Debug System", "Logs exportés dans OMNI_DEBUG_LOGS.txt ! ✅", 5)
-        Logger:AddLog("💾 ***Logs exportés*** dans le dossier exécuteur.", Color3.fromRGB(0, 255, 150))
+        UI:Notify("Debug System", "Logs copiés ! Tu peux les coller ici. ✅", 5)
+        Logger:AddLog("📋 ***Presse-papier*** : Logs copiés avec succès.", Color3.fromRGB(0, 255, 150))
     else
-        UI:Notify("Erreur", "Impossible d'écrire le fichier : " .. tostring(err), 5)
-        Logger:AddLog("❌ ***Échec de l'exportation*** des logs.", Color3.fromRGB(255, 50, 50))
+        UI:Notify("Erreur", "Impossible de copier : " .. tostring(err), 5)
+        -- Plan B : Si setclipboard échoue, on affiche les logs dans la console F9
+        print("--- DEBUG LOGS START ---")
+        print(table.concat(Ops.DebugLogs, "\n"))
+        print("--- DEBUG LOGS END ---")
+        Logger:AddLog("❌ ***Erreur copie***. Voir console F9.", Color3.fromRGB(255, 50, 50))
     end
 end)
 
@@ -169,7 +174,7 @@ print([[
   ___________________________________________
  /                                           \
 |   ✅ OMNI-ELITE : Système prêt !            |
-|   Version : Elite Fusion v3.5               |
+|   Version : Elite Fusion v3.6               |
  \___________________________________________/
 ]])
 Logger:AddLog("✨ ***OMNI-ELITE est prêt !*** Bonne chasse.", Color3.fromRGB(0, 255, 150))
