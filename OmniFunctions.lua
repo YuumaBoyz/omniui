@@ -1,7 +1,7 @@
 --[[
     FICHIER : OmniFunctions.lua
-    VERSION : v5.8 (Busy-Check Security + Triple-A Scanner)
-    LOGIQUE : Neutralisation complète + Correction Error Log + Heartbeat Sync
+    VERSION : v6.0 (Elite Evolution)
+    LOGIQUE : Fusion Intégrale + Human Mimic + Silent Aura + Smart Skills
 ]]
 
 local Players = game:GetService("Players")
@@ -10,6 +10,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
+local UserInputService = game:GetService("UserInputService")
 
 local Functions = {
     Config = {
@@ -22,79 +23,104 @@ local Functions = {
         EliteFarm = false,
         AutoStats = false,
         TargetStat = "Melee", 
-        WeaponType = "Melee" 
+        WeaponType = "Melee",
+        Paused = false -- Flag pour le Human Mimic
     },
     Player = Players.LocalPlayer,
     LastRemoteTick = 0,
-    Controller = nil 
+    Controller = nil,
+    Cooldowns = {Z = 0, X = 0, C = 0, V = 0},
+    LastPauseTick = tick()
 }
 
--- [ 1. MODULE : SÉCURITÉ & ANTI-AFK ] -- 🛡️
+-- [ 1. MODULE : SÉCURITÉ & RÉSEAU ] -- 🛡️
 local function IsBusy(character)
-    -- Correction du crash "Busy is not a valid member" ❌
     local busyValue = character:FindFirstChild("Busy")
-    if busyValue and busyValue:IsA("ValueBase") then
-        return busyValue.Value
-    end
-    return false
-end
-
-local function InitAntiAFK()
-    Functions.Player.Idled:Connect(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new(0, 0))
-        if _G.Logger then
-            _G.Logger:AddLog("🛡️ ***[SYSTEM]*** : Anti-AFK activé (Reset Idle)", Color3.fromRGB(255, 150, 0))
-        end
-    end)
+    return busyValue and busyValue:IsA("ValueBase") and busyValue.Value or false
 end
 
 local function SafeRemote(action, ...)
     local now = tick()
-    if (now - Functions.LastRemoteTick) < 0.1 then task.wait(0.1 - (now - Functions.LastRemoteTick)) end
+    if (now - Functions.LastRemoteTick) < 0.1 then 
+        task.wait(0.1 - (now - Functions.LastRemoteTick)) 
+    end
+    
     local success, response = pcall(function(...)
-        local remote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
-        if remote then
+        local re = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:FindFirstChild("Modules")
+        local comm = re and (re:FindFirstChild("CommF_") or re:FindFirstChild("RE"))
+        
+        if action == "CollectedDragonEgg" and (not comm or not comm:FindFirstChild("CollectedDragonEgg")) then
+            return nil 
+        end
+
+        if comm and comm:IsA("RemoteFunction") then
             Functions.LastRemoteTick = tick()
-            return remote:InvokeServer(unpack({...}))
+            return comm:InvokeServer(unpack({...}))
+        elseif comm and comm:IsA("RemoteEvent") then
+            Functions.LastRemoteTick = tick()
+            comm:FireServer(unpack({...}))
+            return true
         end
     end, action, ...)
     return success and response or nil
 end
 _G.SafeRemoteFire = SafeRemote
 
--- [ 2. TRIPLE-A DYNAMIC SCANNER ] -- 🔍
-function Functions:GetDynamicQuest()
-    local PlayerLevel = self.Player.Data.Level.Value
-    local BestNPC, MinDist = nil, math.huge
-    local myRoot = self.Player.Character and self.Player.Character:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return nil end
-
-    for _, npc in pairs(Workspace:GetDescendants()) do
-        if npc:IsA("Model") and (npc.Name:find("Quest") or npc:FindFirstChild("Quest")) then
-            local root = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-            if root then
-                local dist = (myRoot.Position - root.Position).Magnitude
-                local levelReq = npc.Name:match("%d+")
-                if levelReq and tonumber(levelReq) <= PlayerLevel then
-                    if dist < MinDist then MinDist = dist; BestNPC = npc end
-                end
-            end
-        end
-    end
-    return BestNPC
+local function InitAntiAFK()
+    Functions.Player.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0,0))
+    end)
 end
 
--- [ 3. PHYSIQUE & OPTIMISATION ] -- 📉
-local function OptimizeVisuals(state)
-    pcall(function()
-        local mainUI = Functions.Player.PlayerGui:FindFirstChild("Main")
-        if mainUI and mainUI:FindFirstChild("DamageIndicators") then
-            mainUI.DamageIndicators.Visible = not state
+-- [ 2. MODULES AVANCÉS (HUMAN MIMIC & SKILLS) ] -- 🎭
+function Functions:RunHumanMimic()
+    task.spawn(function()
+        while task.wait(10) do
+            -- Toutes les 120 minutes de farm
+            if self.Config.EliteFarm and (tick() - self.LastPauseTick) >= 7200 then
+                self.Config.Paused = true
+                if _G.Logger then _G.Logger:AddLog("🎭 ***[MIMIC]*** : Pause anti-pattern (5 min)", Color3.fromRGB(255, 200, 0)) end
+                
+                -- Téléportation vers une zone neutre (Middle Town)
+                self:MoveTo(CFrame.new(-20, 50, 0))
+                
+                local startPause = tick()
+                while (tick() - startPause) < 300 do
+                    -- Simulation d'activité humaine
+                    workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame * CFrame.Angles(0, math.rad(math.random(-1,1)), 0)
+                    if math.random(1, 100) > 95 then 
+                        local char = self.Player.Character
+                        if char and char:FindFirstChild("Humanoid") then char.Humanoid.Jump = true end 
+                    end
+                    task.wait(math.random(2, 5))
+                end
+                
+                self.LastPauseTick = tick()
+                self.Config.Paused = false
+                if _G.Logger then _G.Logger:AddLog("✅ ***[MIMIC]*** : Reprise du protocole", Color3.fromRGB(0, 255, 150)) end
+            end
         end
     end)
 end
 
+function Functions:GetLowestMasteryTool()
+    local bestTool, lowestMastery = nil, math.huge
+    local target = self.Config.WeaponType or "Melee"
+    
+    for _, item in pairs(self.Player.Backpack:GetChildren()) do
+        if item:IsA("Tool") and (item:GetAttribute("Type") == target or item.Name:find(target)) then
+            local mastery = item:GetAttribute("Mastery") or 0
+            if mastery < lowestMastery then
+                lowestMastery = mastery
+                bestTool = item
+            end
+        end
+    end
+    return bestTool
+end
+
+-- [ 3. PHYSIQUE & COMBAT CORE ] -- ⚔️
 local function GetCombatController()
     if Functions.Controller then return Functions.Controller end
     pcall(function()
@@ -107,44 +133,58 @@ local function GetCombatController()
     return Functions.Controller
 end
 
-local function NeutralizePhysics(mob)
-    local root, hum = mob:FindFirstChild("HumanoidRootPart"), mob:FindFirstChildOfClass("Humanoid")
-    if root and hum then
-        root.CanCollide = false
-        root.Size = Vector3.new(0.001, 0.001, 0.001)
-        root.Velocity = Vector3.new(0, 0, 0)
-        hum.PlatformStand, hum.WalkSpeed = true, 0
-        for _, part in pairs(mob:GetChildren()) do if part:IsA("BasePart") then part.CanCollide = false end end
-    end
-end
-
--- [ 4. HEARTBEAT SYNC CORE ] -- ⚔️💓
 RunService.Heartbeat:Connect(function()
     local char = Functions.Player.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return end
+    if not myRoot or Functions.Config.Paused then return end
 
+    -- 1. Silent Kill Aura (Hitbox Expander)
+    local tool = char:FindFirstChildOfClass("Tool")
+    if Functions.Config.AutoClicker and tool and tool:FindFirstChild("Handle") then
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or Functions.Config.AutoClicker then
+            tool.Handle.Size = Vector3.new(25, 25, 25)
+            tool.Handle.CanCollide = false
+        else
+            tool.Handle.Size = Vector3.new(1, 1, 1)
+        end
+    end
+
+    -- 2. Fast Attack Sync
     if Functions.Config.FastAttack and not IsBusy(char) then
         local c = GetCombatController()
         if c then
             c.timeToNextAttack, c.attacking = 0, false
-            c.increment, c.hitboxMagnitude = Functions.Config.AttackIncrement or 3, 60
-            if char:FindFirstChild("Humanoid") then
-                for _, t in pairs(char.Humanoid:GetPlayingAnimationTracks()) do
-                    if t.Name:find("Attack") or t.Name:find("Slash") then t:Stop(0) end
+            c.increment = Functions.Config.AttackIncrement or 3
+        end
+    end
+
+    -- 3. Smart Skill Rotation
+    local keys = {"V", "C", "X", "Z"}
+    for _, key in ipairs(keys) do
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if enemies and (tick() - (Functions.Cooldowns[key] or 0)) > 2.5 then
+            for _, mob in pairs(enemies:GetChildren()) do
+                if mob:FindFirstChild("HumanoidRootPart") and (mob.HumanoidRootPart.Position - myRoot.Position).Magnitude < 30 then
+                    task.delay(math.random(1,3)/10, function()
+                        game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode[key], false, game)
+                        Functions.Cooldowns[key] = tick()
+                    end)
+                    break
                 end
             end
         end
     end
 
+    -- 4. Magnetic Mob
     if Functions.Config.MagneticMob then
         local enemies = Workspace:FindFirstChild("Enemies")
         if enemies then
             for _, mob in pairs(enemies:GetChildren()) do
                 local mRoot = mob:FindFirstChild("HumanoidRootPart")
-                if mRoot and mob:FindFirstChildOfClass("Humanoid") and mob.Humanoid.Health > 0 then
+                if mRoot and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
                     if (mRoot.Position - myRoot.Position).Magnitude <= 350 then
-                        NeutralizePhysics(mob)
+                        mRoot.CanCollide = false
+                        mRoot.Velocity = Vector3.new(0,0,0)
                         mRoot.CFrame = myRoot.CFrame * CFrame.new(0, 0, -Functions.Config.AttackDistance)
                     end
                 end
@@ -153,9 +193,10 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- [ 5. MOUVEMENT & ELITE FARM ] -- ✈️
+-- [ 4. MOUVEMENT TWEEN ] -- ✈️
 function Functions:MoveTo(targetCFrame)
-    if typeof(targetCFrame) == "Vector3" then targetCFrame = CFrame.new(targetCFrame) end
+    if self.Config.Paused then return end -- Bloque le mouvement si en pause Mimic
+    
     local char = self.Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
@@ -173,51 +214,26 @@ function Functions:MoveTo(targetCFrame)
     noclip:Disconnect()
 end
 
-function Functions:StartEliteFarm()
-    task.spawn(function()
-        while true do
-            task.wait(0.5)
-            if not self.Config.EliteFarm then continue end
-
-            pcall(function()
-                local questUI = self.Player.PlayerGui.Main:FindFirstChild("Quest")
-                if not questUI or not questUI.Visible then
-                    local targetNpc = self:GetDynamicQuest()
-                    if targetNpc then
-                        self:MoveTo(targetNpc.PrimaryPart.CFrame * CFrame.new(0, 0, 3))
-                        _G.SafeRemoteFire("StartQuest", targetNpc.Name, 1)
-                    end
-                else
-                    OptimizeVisuals(true)
-                    self.Config.FastAttack, self.Config.AutoClicker, self.Config.MagneticMob = true, true, true
-                end
-            end)
-        end
-    end)
-end
-
--- [ 6. INITIALISATION ] -- ⚡
+-- [ 5. INITIALISATION ] -- ⚡
 function Functions:Init()
-    print("--- [ OMNI-FUNCTIONS v5.8 SÉCURISÉ LOADED ] ---")
+    print("--- [ OMNI-FUNCTIONS v6.0 ELITE LOADED ] ---")
     InitAntiAFK()
+    self:RunHumanMimic() -- Active la routine anti-pattern
     
     task.spawn(function()
         while true do
             task.wait(0.01)
-            if self.Config.AutoClicker then
+            if self.Config.AutoClicker and not self.Config.Paused then
                 local char = self.Player.Character
-                -- VÉRIFICATION BUSY POUR ÉVITER LES ERREURS LOG 🛡️
                 if char and not IsBusy(char) then
                     local c = GetCombatController()
                     if c and char:FindFirstChildOfClass("Tool") then
-                        task.spawn(function() pcall(function() c:attack() end) end)
+                        pcall(function() c:attack() end)
                     end
                 end
             end
         end
     end)
-    
-    self:StartEliteFarm()
 end
 
 _G.Functions = Functions
