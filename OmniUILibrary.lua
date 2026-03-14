@@ -1,7 +1,7 @@
 --[[
     OMNI UI LIBRARY : ELITE EDITION
     Optimisation : Correction des Tweens & Persistance Native
-    VERSION : 2.1 Fixed
+    VERSION : 2.1 Fixed (Sync Dropdown Support)
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -69,7 +69,6 @@ function Library:ShowLoadingScreen(text)
     barFill.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
     Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
 
-    -- ✅ FIX : Inversion Quint et Out pour éviter le crash Enum.EasingStyle
     local info = TweenInfo.new(3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
     local tween = TweenService:Create(barFill, info, {Size = UDim2.new(1, 0, 1, 0)})
     
@@ -92,7 +91,7 @@ function Library:CreateWindow(titleText)
     MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     Instance.new("UICorner", MainFrame)
     
-    -- Rendre la fenêtre déplaçable
+    -- Dragging Logic
     local dragging, dragInput, dragStart, startPos
     MainFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -182,10 +181,9 @@ function Library:CreateWindow(titleText)
 
         local TabElements = {}
 
-        -- [ 🟢 TOGGLE FIXED ] --
+        -- [ 🟢 TOGGLE ] --
         function TabElements:CreateToggle(text, configKey, callback)
             local initialValue = GetConfigValue(configKey, false)
-            
             local ToggleFrame = Instance.new("Frame", Page)
             ToggleFrame.Size = UDim2.new(1, -10, 0, 35)
             ToggleFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
@@ -212,20 +210,17 @@ function Library:CreateWindow(titleText)
             Button.Activated:Connect(function()
                 state = not state
                 if _G.Functions and _G.Functions.Config then _G.Functions.Config[configKey] = state end
-                
                 TweenService:Create(Button, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
                     BackgroundColor3 = state and Color3.fromRGB(50, 150, 80) or Color3.fromRGB(150, 50, 50)
                 }):Play()
-                
                 pcall(callback, state)
                 SafeSave()
             end)
         end
 
-        -- [ 🎚️ SLIDER FIXED ] --
+        -- [ 🎚️ SLIDER ] --
         function TabElements:CreateSlider(text, configKey, min, max, default, callback)
             local initialValue = GetConfigValue(configKey, default)
-            
             local SliderFrame = Instance.new("Frame", Page)
             SliderFrame.Size = UDim2.new(1, -10, 0, 50)
             SliderFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
@@ -263,32 +258,65 @@ function Library:CreateWindow(titleText)
             SliderBtn.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
             end)
-
             UserInputService.InputEnded:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
                     dragging = false
                     SafeSave() 
                 end
             end)
-
             UserInputService.InputChanged:Connect(function(input)
                 if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
                     local percentage = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
                     local value = math.floor(min + (max - min) * percentage)
-                    
                     Label.Text = text .. " : " .. tostring(value)
                     if _G.Functions and _G.Functions.Config then _G.Functions.Config[configKey] = value end
-                    
-                    TweenService:Create(Fill, TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {
-                        Size = UDim2.new(percentage, 0, 1, 0)
-                    }):Play()
-                    
+                    Fill.Size = UDim2.new(percentage, 0, 1, 0)
                     pcall(callback, value)
                 end
             end)
         end
 
-        -- [ 🚀 BUTTON SIMPLE ] --
+        -- [ 🚀 DROPDOWN ] -- (Correction Synchronisée)
+        function TabElements:CreateDropdown(text, options, callback)
+            local DropFrame = Instance.new("Frame", Page)
+            DropFrame.Size = UDim2.new(1, -10, 0, 35)
+            DropFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+            Instance.new("UICorner", DropFrame)
+
+            local Label = Instance.new("TextLabel", DropFrame)
+            Label.Size = UDim2.new(1, 0, 1, 0)
+            Label.Position = UDim2.new(0, 10, 0, 0)
+            Label.Text = text .. " : " .. tostring(options[1] or "None")
+            Label.TextColor3 = Color3.new(1, 1, 1)
+            Label.Font = Enum.Font.Gotham
+            Label.TextSize = 14
+            Label.TextXAlignment = Enum.TextXAlignment.Left
+            Label.BackgroundTransparency = 1
+
+            local OpenBtn = Instance.new("TextButton", DropFrame)
+            OpenBtn.Size = UDim2.new(1, 0, 1, 0)
+            OpenBtn.BackgroundTransparency = 1
+            OpenBtn.Text = ""
+
+            local isOpened = false
+            OpenBtn.Activated:Connect(function()
+                isOpened = not isOpened
+                -- Logique simplifiée : cycle à travers les options pour la stabilité
+                local currentIdx = table.find(options, Label.Text:split(" : ")[2]) or 0
+                local nextIdx = (currentIdx % #options) + 1
+                local selected = options[nextIdx]
+                
+                Label.Text = text .. " : " .. tostring(selected)
+                pcall(callback, selected)
+                SafeSave()
+            end)
+            
+            return {
+                Set = function(val) Label.Text = text .. " : " .. tostring(val) end
+            }
+        end
+
+        -- [ 🚀 BUTTON ] --
         function TabElements:CreateButton(text, callback)
             local Btn = Instance.new("TextButton", Page)
             Btn.Size = UDim2.new(1, -10, 0, 35)
@@ -299,9 +327,6 @@ function Library:CreateWindow(titleText)
             Instance.new("UICorner", Btn)
             
             Btn.Activated:Connect(function()
-                TweenService:Create(Btn, TweenInfo.new(0.1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(60, 60, 80)}):Play()
-                task.wait(0.1)
-                TweenService:Create(Btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(40, 40, 50)}):Play()
                 pcall(callback)
             end)
         end
