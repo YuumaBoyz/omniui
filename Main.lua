@@ -2,7 +2,7 @@
     FICHIER : Main.lua
     PROJET  : OMNI-PROJECT | BLOX FRUITS
     VERSION : v5.9 (PHYSICS & GEPPO UPDATE)
-    MISE À JOUR : Safe-Bypass Fly + Infinite Geppo + Keybind Fix
+    MISE À JOUR : Safe-Bypass Fly + Infinite Geppo + Keybind Fix + Sniper Protection
 ]]
 
 -- [ 1. CHARGEMENT SÉCURISÉ IMPÉRATIF ] -- 🛡️
@@ -19,8 +19,7 @@ repeat
 until Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
 
 -- [ 2. IMPORTATION DES MODULES EXTERNES ] -- 📦
--- Note : Assure-toi que ton PhysicModule est bien chargé en amont ou via cette URL
-local Physics = _G.PhysicModule or loadstring(game:HttpGet("https://raw.githubusercontent.com/TonRepo/PhysicModule.lua"))()
+local Physics = _G.PhysicModule or loadstring(game:HttpGet("https://raw.githubusercontent.com/YuumaBoyz/omniui/refs/heads/main/PhysicModule.lua"))()
 
 -- [ 3. CORRECTIF DE SÉCURITÉ PHYSIQUE (ANTI-CRASH) ] -- 🛠️
 if not Player.Character:FindFirstChild("Busy") then
@@ -138,8 +137,21 @@ local FruitTab = MainWin:CreateTab("🍎 Fruits")
 
 FruitTab:CreateToggle("Fruit Sniper (Safe-Collect)", "SniperEnabled", function(state)
     Sniper.Config.Enabled = state
-    if state then _G.SafeRemoteFire("CollectedDragonEgg", true) end
-    Logger:AddLog("Sniper : " .. (state and "***Actif***" or "***Veille***"))
+    if state then 
+        -- Protection pcall pour éviter de bloquer le GUI si le RemoteEvent est absent
+        local success, err = pcall(function()
+            _G.SafeRemoteFire("CollectedDragonEgg", true)
+        end)
+        
+        if not success then
+            warn("⚠️ [OMNI] Erreur critique Remote Sniper : " .. tostring(err))
+            Logger:AddLog("Sniper : ***Erreur de Remote*** (Event introuvable)", Color3.fromRGB(255, 100, 100))
+        else
+            Logger:AddLog("Sniper : ***Actif***")
+        end
+    else
+        Logger:AddLog("Sniper : ***Veille***")
+    end
 end)
 
 -- [ 10. ONGLET MOUVEMENT ] -- ✈️
