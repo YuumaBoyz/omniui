@@ -1,7 +1,7 @@
 --[[
     FICHIER : Main.lua
     PROJET  : OMNI-ELITE | BLOX FRUITS
-    VERSION : Elite Fusion v3.5 (Stable & Final)
+    VERSION : Elite Fusion v3.5 (Stable & Debug Enabled)
     UTILITÉ : Contrôleur Principal & Liaison Inter-Modules
 ]]
 
@@ -136,6 +136,18 @@ ConfTab:CreateButton("🚀 Hop New Server", function()
         Logger:AddLog("⚠️ Manuel : Forçage du Server Hop...", Color3.fromRGB(255, 255, 0))
         Ops:SmartHop()
     end)
+end)
+
+ConfTab:CreateButton("📄 Exporter la console (Debug)", function()
+    local success, err = pcall(function() return Ops:ExportLogs() end)
+    
+    if success then
+        UI:Notify("Debug System", "Logs exportés dans OMNI_DEBUG_LOGS.txt ! ✅", 5)
+        Logger:AddLog("💾 ***Logs exportés*** dans le dossier exécuteur.", Color3.fromRGB(0, 255, 150))
+    else
+        UI:Notify("Erreur", "Impossible d'écrire le fichier : " .. tostring(err), 5)
+        Logger:AddLog("❌ ***Échec de l'exportation*** des logs.", Color3.fromRGB(255, 50, 50))
+    end
 end)
 
 ConfTab:CreateDropdown("Priorité de Farm", {"Fruits Uniquement", "Level Uniquement", "Mixte"}, function(selected)

@@ -1,7 +1,7 @@
 --[[
     FICHIER : OmniFunctions.lua
-    UTILITÉ : Moteur Logique (Mouvement, Sniper, Combat & Server Hop)
-    VERSION : Elite Fusion v3
+    UTILITÉ : Moteur Logique (Mouvement, Sniper, Combat, Server Hop & Debug)
+    VERSION : Elite Fusion v3.5 (Debug Integrated)
 ]]
 
 local HttpService = game:GetService("HttpService")
@@ -9,6 +9,7 @@ local TeleportService = game:GetService("TeleportService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
+local LogService = game:GetService("LogService")
 
 local Functions = {
     Config = {
@@ -24,11 +25,37 @@ local Functions = {
         AttackDistance = 15,
         AntiAFK = true
     },
-    Player = Players.LocalPlayer
+    Player = Players.LocalPlayer,
+    DebugLogs = {} -- Stockage des logs pour exportation
 }
 
+-- [ 0. SYSTÈME DE CAPTURE DE DEBUG ] -- 🛠️
+LogService.MessageOut:Connect(function(message, messageType)
+    local timestamp = os.date("%H:%M:%S")
+    local prefix = "[" .. timestamp .. "] [" .. tostring(messageType) .. "] "
+    table.insert(Functions.DebugLogs, prefix .. message)
+    
+    -- Limitation de la table pour économiser la mémoire (500 entrées max)
+    if #Functions.DebugLogs > 500 then
+        table.remove(Functions.DebugLogs, 1)
+    end
+end)
+
+function Functions:ExportLogs()
+    local success, err = pcall(function()
+        local content = "--- OMNI-ELITE DEBUG EXPORT (" .. os.date("%d/%m/%Y %H:%M:%S") .. ") ---\n\n"
+        content = content .. table.concat(self.DebugLogs, "\n")
+        
+        if writefile then
+            writefile("OMNI_DEBUG_LOGS.txt", content)
+        else
+            warn("❌ writefile non supporté par l'exécuteur")
+        end
+    end)
+    return success, err
+end
+
 -- [ 1. MOTEUR GHOST-MOVEMENT ] -- ✈️
--- Version optimisée : Téléportation instantanée pour le Sniper / Linéaire pour le Farm
 function Functions:GhostMove(targetCFrame, instant)
     local char = self.Player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -40,7 +67,6 @@ function Functions:GhostMove(targetCFrame, instant)
         return
     end
 
-    -- Mouvement Linéaire (utilisé pour le farm classique)
     local bv = Instance.new("BodyVelocity", root)
     bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     bv.Velocity = Vector3.new(0,0,0)
@@ -62,20 +88,17 @@ end
 
 -- [ 2. MODULE FRUIT SNATCHER (INSTANT) ] -- 🍓
 function Functions:InitFruitSniper()
-    -- Détection instantanée (ChildAdded)
     Workspace.ChildAdded:Connect(function(child)
         if not self.Config.SniperEnabled then return end
         if child:IsA("Tool") and string.find(child.Name, "Fruit") then
             local handle = child:WaitForChild("Handle", 2)
             if handle then
-                _G.Logger:AddLog("🎯 FRUIT APPARU : ***" .. child.Name .. "***", Color3.fromRGB(255, 150, 0))
+                if _G.Logger then _G.Logger:AddLog("🎯 FRUIT APPARU : ***" .. child.Name .. "***", Color3.fromRGB(255, 150, 0)) end
                 self:GhostMove(handle.CFrame, true)
                 
-                -- Collecte
                 firetouchinterest(self.Player.Character.HumanoidRootPart, handle, 0)
                 firetouchinterest(self.Player.Character.HumanoidRootPart, handle, 1)
                 
-                -- Stockage
                 task.wait(0.3)
                 game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("StoreFruit", child.Name, child)
             end
@@ -85,7 +108,7 @@ end
 
 -- [ 3. SMART SERVER HOPPER ] -- 🚀
 function Functions:SmartHop()
-    _G.Logger:AddLog("🌐 Recherche d'un serveur frais...", Color3.fromRGB(200, 200, 200))
+    if _G.Logger then _G.Logger:AddLog("🌐 Recherche d'un serveur frais...", Color3.fromRGB(200, 200, 200)) end
     local sfUrl = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100"
     
     local success, result = pcall(function()
@@ -100,7 +123,7 @@ function Functions:SmartHop()
             end
         end
     end
-    _G.Logger:AddLog("❌ Échec du Hop. Nouvelle tentative...", Color3.fromRGB(255, 50, 50))
+    if _G.Logger then _G.Logger:AddLog("❌ Échec du Hop. Nouvelle tentative...", Color3.fromRGB(255, 50, 50)) end
 end
 
 function Functions:StartSmartScan()
@@ -111,20 +134,19 @@ function Functions:StartSmartScan()
             local fruitFound = false
             for _, item in pairs(Workspace:GetChildren()) do
                 if item:IsA("Tool") and string.find(item.Name, "Fruit") then
-                    -- Si c'est un fruit de la Whitelist, on stoppe le hopper
                     for _, elite in pairs(self.Config.WhiteList) do
                         if item.Name:find(elite) then
-                            _G.Logger:AddLog("💎 FRUIT ÉLITE DÉTECTÉ : ***" .. item.Name .. "***. Hop annulé.", Color3.fromRGB(255, 0, 0))
+                            if _G.Logger then _G.Logger:AddLog("💎 FRUIT ÉLITE DÉTECTÉ : ***" .. item.Name .. "***. Hop annulé.", Color3.fromRGB(255, 0, 0)) end
                             return 
                         end
                     end
-                    fruitFound = true -- On a trouvé un fruit lambda, on va le chercher
+                    fruitFound = true 
                     self:GhostMove(item.Handle.CFrame, true)
                 end
             end
             
             if not fruitFound then
-                _G.Logger:AddLog("⏳ Serveur vide. Server Hop dans 1s...", Color3.fromRGB(150, 150, 150))
+                if _G.Logger then _G.Logger:AddLog("⏳ Serveur vide. Server Hop dans 1s...", Color3.fromRGB(150, 150, 150)) end
                 task.wait(1)
                 self:SmartHop()
             end
@@ -135,9 +157,11 @@ end
 -- [ 4. MODULE FAST ATTACK & COMBAT ] -- ⚡
 function Functions:EnableFastAttack()
     task.spawn(function()
-        local CombatFramework = require(self.Player.PlayerScripts.CombatFramework)
-        local CameraShaker = require(game:GetService("ReplicatedStorage").Util.CameraShaker)
-        CameraShaker:Stop()
+        local success, CombatFramework = pcall(require, self.Player.PlayerScripts.CombatFramework)
+        local _, CameraShaker = pcall(require, game:GetService("ReplicatedStorage").Util.CameraShaker)
+        
+        if CameraShaker then pcall(function() CameraShaker:Stop() end) end
+        if not success then return end
         
         while task.wait() do
             if self.Config.FastAttack then
@@ -159,7 +183,6 @@ function Functions:StartAutoClick()
                 VirtualUser:CaptureController()
                 VirtualUser:ClickButton1(Vector2.new(0,0))
                 
-                -- Anti-Animation
                 if self.Config.FastAttack then
                     local hum = self.Player.Character:FindFirstChildOfClass("Humanoid")
                     if hum then
@@ -173,6 +196,6 @@ function Functions:StartAutoClick()
     end)
 end
 
--- Exportation
+-- [ EXPORTATION GLOBALE ] --
 _G.Functions = Functions
 return Functions
