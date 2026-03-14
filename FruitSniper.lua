@@ -1,66 +1,96 @@
 --[[
     MODULE  : FruitSniper.lua
-    VERSION : v1.0 (Auto-Collect & Notify)
-    LOGIQUE : Workspace Scanner + Tween TP
+    LOGIQUE : Détection instantanée & Repositionnement CFrame
+    OPTIMISATION : Recherche de latence réseau & Automation
 ]]
 
+local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
-local Player = Players.LocalPlayer
-local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
--- Configuration locale (synchronisée avec _G si disponible)
-_G.Functions = _G.Functions or {}
-_G.Functions.Config = _G.Functions.Config or {}
-_G.Functions.Config.FruitSniper = false
+local FruitSniper = {
+    Enabled = false,
+    PriorityFruits = {"Dragon", "Leopard", "Dough", "Kitsune"}, -- Filtre de priorité
+    AutoStore = true,
+    Scanning = false
+}
 
-local function Notify(title, msg)
-    if _G.Library then
-        _G.Library:Notify(title, msg)
-    else
-        print("[" .. title .. "]: " .. msg)
+-- [ 1. SYSTÈME DE NOTIFICATION SÉCURISÉ ] -- 🛡️
+-- Prévient l'erreur "attempt to call missing method 'Notify'"
+local function DispatchNotification(title, message)
+    task.spawn(function()
+        local timeout = 0
+        -- Attente de l'initialisation de l'UI
+        while not (_G.Library and _G.Library.Notify) and timeout < 30 do
+            task.wait(0.1)
+            timeout = timeout + 1
+        end
+
+        if _G.Library and _G.Library.Notify then
+            _G.Library:Notify(title, message)
+        elseif _G.Logger then
+            _G.Logger:AddLog("🍎 [SNIPER] " .. message, Color3.fromRGB(255, 150, 0))
+        end
+    end)
+end
+
+-- [ 2. LOGIQUE DE CAPTURE (BYPASS INTERPOLATION) ] -- ⚡
+local function CaptureFruit(fruitInstance)
+    local character = LocalPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    
+    if root and fruitInstance:IsA("BasePart") or fruitInstance:FindFirstChild("Handle") then
+        local targetPos = fruitInstance:IsA("BasePart") and fruitInstance.CFrame or fruitInstance.Handle.CFrame
+        
+        -- Déplacement instantané par manipulation de CFrame (Outrepasse la latence)
+        root.CFrame = targetPos
+        task.wait(0.1) -- Temps de synchronisation réseau
+        
+        -- Interception des RemoteEvents pour le stockage
+        local storeRemote = game:GetService("ReplicatedStorage"):FindFirstChild("StoreFruit", true)
+        if storeRemote and storeRemote:IsA("RemoteFunction") or storeRemote:IsA("RemoteEvent") then
+            storeRemote:FireServer(fruitInstance.Name, fruitInstance)
+        end
+        
+        DispatchNotification("SNIPER", "***" .. fruitInstance.Name .. "*** capturé et stocké ! ✅")
     end
 end
 
--- [ 1. LOGIQUE DE TÉLÉPORTATION ] -- ✈️
-local function TweenToFruit(targetCFrame)
-    if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return end
+-- [ 3. SCANNER DE WORKSPACE ULTRA-RAPIDE ] -- 🔍
+function FruitSniper:StartScanner()
+    if self.Scanning then return end
+    self.Scanning = true
     
-    local distance = (Player.Character.HumanoidRootPart.Position - targetCFrame.Position).Magnitude
-    local speed = 300 -- Vitesse du sniper
-    local info = TweenInfo.new(distance / speed, Enum.EasingStyle.Linear)
-    
-    local tween = TweenService:Create(Player.Character.HumanoidRootPart, info, {CFrame = targetCFrame})
-    tween:Play()
-    return tween
-end
+    -- Listener sur les nouvelles instances (Apparition instantanée)
+    Workspace.DescendantAdded:Connect(function(descendant)
+        if self.Enabled and (descendant.Name:find("Fruit") or table.find(self.PriorityFruits, descendant.Name)) then
+            CaptureFruit(descendant)
+        end
+    end)
 
--- [ 2. SCANNER DE FRUITS ] -- 🔍
-task.spawn(function()
-    while true do
-        task.wait(1)
-        
-        if _G.Functions.Config.FruitSniper then
-            pcall(function()
-                for _, obj in pairs(workspace:GetChildren()) do
-                    -- Dans Blox Fruits, les fruits au sol contiennent souvent "Fruit" dans leur nom
-                    if obj:IsA("Tool") or (obj:IsA("Model") and obj.Name:find("Fruit")) then
-                        local handle = obj:FindFirstChild("Handle") or obj:FindFirstChildOfClass("BasePart")
-                        
-                        if handle then
-                            _G.Logger:AddLog("🍎 Fruit détecté : " .. obj.Name, Color3.fromRGB(255, 100, 100))
-                            Notify("Fruit Sniper", "Récupération de : " .. obj.Name)
-                            
-                            local tw = TweenToFruit(handle.CFrame)
-                            if tw then tw.Completed:Wait() end
-                            
-                            task.wait(0.5) -- Temps pour ramasser
-                        end
+    -- Balayage initial par itérateur optimisé
+    task.spawn(function()
+        while task.wait(1) do
+            if self.Enabled then
+                for _, obj in pairs(Workspace:GetChildren()) do
+                    if obj.Name:find("Fruit") and obj:IsA("Tool") then
+                        CaptureFruit(obj)
                     end
                 end
-            end)
+            end
         end
-    end
-end)
+    end)
+end
 
-print("✅ [OMNI-PROJECT] Fruit-Sniper v1.0 prêt. 🎯")
-return true
+-- [ 4. INITIALISATION ] -- ⚙️
+function FruitSniper:Init()
+    self:StartScanner()
+    -- Message de confirmation dans la console OmniLogger
+    if _G.Logger then
+        _G.Logger:AddLog("✅ ***Moteur FruitSniper v4.0 Prêt***", Color3.fromRGB(255, 200, 0))
+    end
+end
+
+_G.FruitSniperModule = FruitSniper
+return FruitSniper
