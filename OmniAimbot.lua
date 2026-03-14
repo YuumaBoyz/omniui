@@ -1,76 +1,72 @@
 --[[
     FICHIER : OmniAimbot.lua
-    PROJET  : OMNI-PROJECT | BLOX FRUITS
-    VERSION : v1.0.2 (SKILL LOCK EDITION)
-    LOGIQUE : Prediction Vector + Target Lock + Mouse Redirection
+    VERSION : v1.1.0 (MAGNET SYNC EDITION)
+    LOGIQUE : Priorité au Magnet + Target Lock + Skill Redirection
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
 local Camera = workspace.CurrentCamera
 
 local Aimbot = {
     Enabled = false,
     Range = 500,
-    TeamCheck = false,
     Target = nil
 }
 
--- [ FONCTION : TROUVER LA CIBLE LA PLUS PROCHE ] -- 🔍
-local function GetClosestTarget()
+-- [ FONCTION : DÉTECTION INTELLIGENTE ] -- 🔍
+local function GetBestTarget()
+    -- PRIORITÉ 1 : La cible déjà verrouillée par le MagneticMob
+    if _G.MagneticTarget and _G.MagneticTarget:FindFirstChild("Humanoid") and _G.MagneticTarget.Humanoid.Health > 0 then
+        return _G.MagneticTarget
+    end
+
+    -- PRIORITÉ 2 : La cible la plus proche (si pas de Magnet)
     local closest = nil
     local maxDist = Aimbot.Range
+    local myPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position
 
-    -- Chercher dans les Mobs et les Joueurs
-    local potentialTargets = {}
-    
-    -- Ajout des Mobs (Enemies)
-    for _, v in pairs(workspace.Enemies:GetChildren()) do
-        if v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
-            table.insert(potentialTargets, v)
-        end
-    end
-    
-    -- Ajout des Joueurs (si PvP activé dans tes besoins futurs)
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
-            table.insert(potentialTargets, v.Character)
-        end
-    end
+    if not myPos then return nil end
 
-    for _, char in pairs(potentialTargets) do
-        local screenPos, onScreen = Camera:WorldToViewportPoint(char.HumanoidRootPart.Position)
-        if onScreen then
-            local dist = (char.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-            if dist < maxDist then
-                maxDist = dist
-                closest = char
+    -- Scan des ennemis
+    local enemies = workspace:FindFirstChild("Enemies")
+    if enemies then
+        for _, v in pairs(enemies:GetChildren()) do
+            local root = v:FindFirstChild("HumanoidRootPart")
+            local hum = v:FindFirstChildOfClass("Humanoid")
+            if root and hum and hum.Health > 0 then
+                local dist = (root.Position - myPos).Magnitude
+                if dist < maxDist then
+                    maxDist = dist
+                    closest = v
+                end
             end
         end
     end
+    
     return closest
 end
 
--- [ BOUCLE DE REDIRECTION (MOUSE OVERRIDE) ] -- 🖱️
--- On utilise un hook sur le moteur de rendu pour forcer la position du curseur
+-- [ BOUCLE DE REDIRECTION ] -- 🖱️
 RunService.RenderStepped:Connect(function()
-    if Aimbot.Enabled then
-        Aimbot.Target = GetClosestTarget()
+    if not Aimbot.Enabled then 
+        _G.CurrentTargetPart = nil
+        return 
+    end
+
+    Aimbot.Target = GetBestTarget()
+    
+    if Aimbot.Target and Aimbot.Target:FindFirstChild("HumanoidRootPart") then
+        -- On définit la globale pour que tes skills (Z, X, C, V) s'orientent ici
+        _G.CurrentTargetPart = Aimbot.Target.HumanoidRootPart
         
-        if Aimbot.Target and Aimbot.Target:FindFirstChild("HumanoidRootPart") then
-            -- On "ment" au jeu en disant que la souris est sur la cible
-            local targetPos = Aimbot.Target.HumanoidRootPart.Position
-            
-            -- Hook technique : On définit une globale que tes skills utiliseront
-            _G.CurrentTargetPart = Aimbot.Target.HumanoidRootPart
-        else
-            _G.CurrentTargetPart = nil
-        end
+        -- Optionnel : Force la caméra à regarder légèrement la cible si besoin
+        -- Camera.CFrame = CFrame.new(Camera.CFrame.Position, Aimbot.Target.HumanoidRootPart.Position)
+    else
+        _G.CurrentTargetPart = nil
     end
 end)
 
--- [ EXPORT DU MODULE ] --
 _G.Aimbot = Aimbot
 return Aimbot
