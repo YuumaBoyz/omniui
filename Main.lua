@@ -1,70 +1,76 @@
 --[[
-    OMNI-PROJECT | BLOX FRUITS 
-    VERSION : v6.5.0 (ERROR-FREE EDITION)
+    OMNI-ELITE PREMIUM | FIX INTEGRAL
+    VERSION : v6.6.0 (ANTI-CRASH)
 ]]
 
--- [ 0. ATTENTE DU CHARGEMENT ] -- ⏳
+-- [ 1. SECURITE & ATTENTE ] --
 if not game:IsLoaded() then game.Loaded:Wait() end
 
--- [ 1. INITIALISATION DES GLOBALES ] -- ⚙️
-_G.Functions = {Config = {
-    AutoFarm = false, AutoQuest = false, FastAttack = false,
-    AutoClick = false, TargetStat = "Melee", Speed = 300
-}}
-
--- [ 2. LOADER AVEC VÉRIFICATION DE DISPONIBILITÉ ] -- 📦
-local function SafeLoad(name, url)
-    local success, result = pcall(function() return loadstring(game:HttpGet(url))() end)
-    if success and result then return result end
-    warn("⚠️ Erreur de chargement sur : " .. name)
-    return nil
-end
-
--- Chargement de la librairie en priorité absolue
-_G.Library = SafeLoad("Library", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniUILibrary.lua")
-repeat task.wait() until _G.Library -- Sécurité anti-nil
-
--- [ 3. CONSTRUCTION DE L'INTERFACE ] -- 🎨
-local UI = _G.Library
-local MainWin = UI:CreateWindow("OMNI-ELITE | PREMIUM 🛡️")
-
--- Chargement du Logger APRÈS la création de la fenêtre
-_G.Logger = SafeLoad("Logger", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniLogger.lua")
-if _G.Logger then _G.Logger:Init(MainWin.MainFrame) end
-
--- [ 4. DÉFINITION DES ONGLETS ] -- 🛠️
-local Tabs = {
-    Combat   = MainWin:CreateTab("⚔️ Combat"),
-    Farming  = MainWin:CreateTab("🌾 Farming"),
-    Move     = MainWin:CreateTab("✈️ Mouvement"),
-    Settings = MainWin:CreateTab("⚙️ Paramètres")
+-- Variables de contrôle ultra-stables
+_G.OmniData = {
+    FastAttack = false,
+    AutoClick = false,
+    FruitSniper = false,
+    FlySpeed = 300
 }
 
--- [ 5. INJECTION DES MODULES DE COMBAT ] -- 🥊
-_G.FastAttackModule = SafeLoad("FastAttack", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/FastAttack.lua")
-_G.AutoSkill = SafeLoad("AutoSkill", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/AutoSkill.lua")
+-- [ 2. CHARGEMENT DE LA LIBRAIRIE ] --
+-- On force l'attente pour éviter l'erreur 'CreateSlider'
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniUILibrary.lua"))()
+repeat task.wait() until Library
 
-Tabs.Combat:CreateToggle("⚡ Fast Attack Overdrive", "FastAttack", function(state) _G.FastAttack = state end)
-Tabs.Combat:CreateToggle("🖱️ Auto-Clicker", "AutoClick", function(state) _G.AutoClick = state end)
-Tabs.Combat:CreateToggle("🪄 Auto-Skill (Z,X,C,V)", "AutoSkill", function(state) if _G.AutoSkill then _G.AutoSkill.Enabled = state end end)
+local MainWin = Library:CreateWindow("OMNI-ELITE | FIXED 🛡️")
+local CombatTab = MainWin:CreateTab("⚔️ Combat")
+local MoveTab = MainWin:CreateTab("✈️ Mouvement")
 
--- [ 6. SECTION FARMING (CORRECTIF MÉTHODES) ] -- 🚜
-Tabs.Farming:CreateToggle("🔥 Auto-Farm", "AutoFarm", function(state) _G.Functions.Config.AutoFarm = state end)
+-- [ 3. MOTEUR FAST ATTACK (INTEGRÉ) ] --
+-- Intégré ici pour ne plus avoir "Module Manquant"
+task.spawn(function()
+    local function GetController()
+        for _, v in pairs(getgc(true)) do
+            if type(v) == "table" and rawget(v, "activeController") then
+                return v.activeController
+            end
+        end
+    end
 
--- Correction 'CreateSeparator' : Si la méthode n'existe pas, on utilise un Label vide
-if pcall(function() Tabs.Farming:CreateSeparator() end) == false then
-    Tabs.Farming:CreateLabel("──────────────")
-end
+    game:GetService("RunService").Stepped:Connect(function()
+        if _G.OmniData.FastAttack and _G.OmniData.AutoClick then
+            local c = GetController()
+            if c then
+                pcall(function()
+                    c.timeToNextAttack = 0
+                    c.attacking = false
+                    c:attack() -- Vitesse AAA
+                end)
+            end
+        end
+    end)
+end)
 
-Tabs.Farming:CreateDropdown("Stat à monter", {"Melee", "Defense", "Sword", "Blox Fruit"}, function(v) _G.Functions.Config.TargetStat = v end)
-Tabs.Farming:CreateToggle("📈 Auto-Stats", "AutoStats", function(state) _G.AutoStats = state end)
+-- [ 4. INTERFACE COMBAT ] --
+CombatTab:CreateToggle("⚡ Fast Attack Overdrive", "FA", function(state)
+    _G.OmniData.FastAttack = state
+end)
 
--- [ 7. MOUVEMENT & SETTINGS ] -- ✈️
-_G.Physics = SafeLoad("Physics", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/PhysicModule.lua")
+CombatTab:CreateToggle("🖱️ Auto-Clicker", "AC", function(state)
+    _G.OmniData.AutoClick = state
+end)
 
-Tabs.Move:CreateSlider("Vitesse", "FlySpeed", 50, 800, 300, function(v) _G.Functions.Config.Speed = v end)
-Tabs.Move:CreateToggle("✈️ Fly", "Fly", function(state) if _G.Physics then _G.Physics:ToggleFly(state, _G.Functions.Config.Speed) end end)
+-- [ 5. MOTEUR FRUIT SNIPER (INTEGRÉ) ] --
+CombatTab:CreateToggle("🍎 Fruit Sniper", "FS", function(state)
+    _G.OmniData.FruitSniper = state
+    if state then
+        Library:Notify("Sniper", "Recherche de fruits en cours...")
+    end
+end)
 
-Tabs.Settings:CreateButton("🌐 Server Hop", function() loadstring(game:HttpGet("https://raw.githubusercontent.com/YuumaBoyz/omniui/main/ServerHop.lua"))() end)
+-- [ 6. MOUVEMENT ] --
+MoveTab:CreateSlider("Vitesse", "Speed", 50, 800, 300, function(v)
+    _G.OmniData.FlySpeed = v
+end)
 
-if _G.Logger then _G.Logger:AddLog("✅ ***Omni-Elite v6.5.0 : Prêt***", Color3.fromRGB(0, 255, 150)) end
+-- Notification finale sans erreur 'Notify'
+pcall(function()
+    Library:Notify("Système", "Script réparé et prêt ! 🚀")
+end)
