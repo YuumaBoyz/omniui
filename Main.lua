@@ -1,87 +1,85 @@
 --[[
     OMNI-PROJECT | BLOX FRUITS 
-    VERSION : v6.3.0 (PREMIUM UNIFIED)
-    STATUS  : STABLE & OPTIMIZED
+    VERSION : v6.4.0 (FULL INTEGRATION)
+    STATUS  : READY 🚀
 ]]
 
--- [ 0. PROTECTION ET NETTOYAGE ] -- 🛡️
-local function SafelyDestroy(name)
-    local ui = game:GetService("CoreGui"):FindFirstChild(name)
-    if ui then ui:Destroy() end
-end
-SafelyDestroy("OmniUI_Elite")
-
+-- [ 0. PROTECTION ] -- 🛡️
 if not game:IsLoaded() then game.Loaded:Wait() end
 
--- [ 1. INITIALISATION DES GLOBALES ] -- ⚙️
+-- [ 1. CONFIGURATION GLOBALE ] -- ⚙️
 _G.Functions = {Config = {
     AutoFarm = false,
+    AutoQuest = false,
     FastAttack = false,
     AutoClick = false,
+    TargetStat = "Melee",
     Speed = 300,
-    FruitSniper = false
+    Distance = 60
 }}
 
--- [ 2. CHARGEMENT SÉCURISÉ DES MODULES ] -- 📦
+-- [ 2. CHARGEMENT DES MODULES ] -- 📦
 local function LoadModule(name, url)
-    local success, result = pcall(function() 
-        return loadstring(game:HttpGet(url))() 
-    end)
-    if success and result then
-        if _G.Logger then _G.Logger:AddLog("✅ " .. name .. " injecté.", Color3.fromRGB(0, 255, 100)) end
-        return result
-    else
-        warn("⚠️ Erreur sur " .. name .. " -> " .. tostring(result))
-        return nil
-    end
+    local success, result = pcall(function() return loadstring(game:HttpGet(url))() end)
+    if success and result then return result end
+    warn("❌ Error loading: " .. name) return nil
 end
 
--- Ordre de chargement critique
-_G.Logger = LoadModule("OmniLogger", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniLogger.lua")
-_G.Library = LoadModule("OmniUILibrary", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniUILibrary.lua")
+_G.Library = LoadModule("Library", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniUILibrary.lua")
+_G.Logger = LoadModule("Logger", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniLogger.lua")
 
--- Suite des modules
-_G.Physics = LoadModule("Physics", "https://raw.githubusercontent.com/YuumaBoyz/omniui/refs/heads/main/PhysicModule.lua")
-_G.FastAttackModule = LoadModule("FastAttack", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/FastAttack.lua")
-_G.AutoSkill = LoadModule("AutoSkill", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/AutoSkill.lua")
-_G.Aimbot = LoadModule("Aimbot", "https://raw.githubusercontent.com/YuumaBoyz/omniui/refs/heads/main/OmniAimbot.lua")
-
--- [ 3. CONSTRUCTION DE L'INTERFACE ] -- 🎨
+-- Initialisation de l'interface
 local UI = _G.Library
 if not UI then return end
-
 local MainWin = UI:CreateWindow("OMNI-ELITE | PREMIUM 🛡️")
+if _G.Logger then _G.Logger:Init(MainWin.MainFrame) end
+
+-- Chargement du reste des modules
+_G.Aimbot = LoadModule("Aimbot", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniAimbot.lua")
+_G.FastAttackModule = LoadModule("FastAttack", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/FastAttack.lua")
+_G.AutoSkill = LoadModule("AutoSkill", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/AutoSkill.lua")
+_G.Physics = LoadModule("Physics", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/PhysicModule.lua")
+_G.QuestScanner = LoadModule("QuestScanner", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniQuestScanner.lua")
+_G.StatsMod = LoadModule("AutoStats", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/AutoStats.lua")
+_G.Sniper = LoadModule("FruitSniper", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/FruitSniper.lua")
+_G.Magnet = LoadModule("MagneticMob", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/MagneticMob.lua")
+
+-- [ 3. TABS ] -- 🎨
 local Tabs = {
     Combat   = MainWin:CreateTab("⚔️ Combat"),
     Farming  = MainWin:CreateTab("🌾 Farming"),
+    Fruits   = MainWin:CreateTab("🍎 Fruits"),
     Move     = MainWin:CreateTab("✈️ Mouvement"),
     Settings = MainWin:CreateTab("⚙️ Paramètres")
 }
 
--- [ 4. CONFIGURATION DES ONGLETS ] -- 🛠️
--- Initialise le Logger dans la frame
-if _G.Logger then _G.Logger:Init(MainWin.MainFrame) end
+-- [ 4. SECTION : COMBAT ] -- 🥊
+Tabs.Combat:CreateToggle("⚡ Fast Attack Overdrive", "FastAttack", function(state) _G.FastAttack = state end)
+Tabs.Combat:CreateToggle("🖱️ Auto-Clicker", "AutoClick", function(state) _G.AutoClick = state end)
+Tabs.Combat:CreateToggle("🎯 Omni-Aimbot", "Aimbot", function(state) if _G.Aimbot then _G.Aimbot.Enabled = state end end)
+Tabs.Combat:CreateToggle("🪄 Auto-Skill (Z,X,C,V)", "AutoSkill", function(state) if _G.AutoSkill then _G.AutoSkill.Enabled = state end end)
+Tabs.Combat:CreateToggle("🛡️ Auto-Defense", "AutoDefense", function(state) _G.AutoDefense = state end)
 
--- COMBAT
-Tabs.Combat:CreateToggle("⚡ Fast Attack (Overdrive)", "FastAttack", function(state)
-    _G.FastAttack = state
-    if _G.FastAttackModule then _G.FastAttackModule.Enabled = state end
-end)
+-- [ 5. SECTION : FARMING ] -- 🚜
+Tabs.Farming:CreateToggle("🔥 Start Auto-Farm", "AutoFarm", function(state) _G.Functions.Config.AutoFarm = state end)
+Tabs.Farming:CreateToggle("📜 Auto-Quest Scanner", "AutoQuest", function(state) _G.Functions.Config.AutoQuest = state end)
+Tabs.Farming:CreateToggle("🧲 Magnetic Mob", "Magnet", function(state) _G.MagneticMob = state end)
+Tabs.Farming:CreateSeparator("📊 Statistiques")
+Tabs.Farming:CreateDropdown("Stat à monter", {"Melee", "Defense", "Sword", "Blox Fruit"}, function(v) _G.Functions.Config.TargetStat = v end)
+Tabs.Farming:CreateToggle("📈 Auto-Stats", "AutoStats", function(state) _G.AutoStats = state end)
 
-Tabs.Combat:CreateToggle("🖱️ Auto-Clicker", "AutoClick", function(state)
-    _G.AutoClick = state
-end)
+-- [ 6. SECTION : FRUITS ] -- 🍎
+Tabs.Fruits:CreateToggle("🎯 Fruit Sniper", "FruitSniper", function(state) _G.FruitSniper = state end)
+Tabs.Fruits:CreateButton("📦 Store Fruits", function() if _G.Sniper then _G.Sniper:StoreAll() end end)
 
-Tabs.Combat:CreateToggle("🪄 Auto-Skill (Z,X,C,V)", "AutoSkill", function(state)
-    if _G.AutoSkill then _G.AutoSkill.Enabled = state end
-end)
+-- [ 7. SECTION : MOUVEMENT ] -- ✈️
+Tabs.Move:CreateSlider("Vitesse", "FlySpeed", 50, 800, 300, function(v) _G.Functions.Config.Speed = v end)
+Tabs.Move:CreateToggle("✈️ Fly", "Fly", function(state) if _G.Physics then _G.Physics:ToggleFly(state, _G.Functions.Config.Speed) end end)
+Tabs.Move:CreateToggle("👻 NoClip", "NoClip", function(state) if _G.Physics then _G.Physics:ToggleNoClip(state) end end)
 
--- MOUVEMENT
-Tabs.Move:CreateSlider("Vitesse de Vol", "FlySpeed", 50, 800, 300, function(v) _G.Functions.Config.Speed = v end)
-Tabs.Move:CreateToggle("✈️ Activer le Vol", "Fly", function(state)
-    if _G.Physics and _G.Physics.ToggleFly then 
-        _G.Physics:ToggleFly(state, _G.Functions.Config.Speed) 
-    end
-end)
+-- [ 8. SECTION : SETTINGS ] -- ⚙️
+Tabs.Settings:CreateButton("🌐 Server Hop (Low Player)", function() loadstring(game:HttpGet("https://raw.githubusercontent.com/YuumaBoyz/omniui/main/ServerHop.lua"))() end)
+Tabs.Settings:CreateButton("💾 Save Config", function() if _G.SaveManager then _G.SaveManager:Save() end end)
 
-UI:Notify("Système", "Omni-Project Premium Ready ! 🚀")
+_G.Logger:AddLog("✨ ***Omni-Project v6.4.0 Chargé avec succès***", Color3.fromRGB(0, 255, 150))
+UI:Notify("Système", "Protocole Omni-Elite activé. Bonne chasse ! 🚀")
