@@ -1,184 +1,182 @@
 --[[
     FICHIER : OmniFunctions.lua
-    LOGIQUE : Ultra-Fusion Ghost-Protocol
-    VERSION : v4.4 (GC-Based, Safe-Bring & Global Engine)
+    LOGIQUE : Immortal-Fusion + Dynamic Auto-Farm
+    VERSION : v4.8 (Dynamic-Quest & Safe-Movement)
 ]]
 
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
-local LogService = game:GetService("LogService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
 
 local Functions = {
     Config = {
         -- Mouvement & Sniper
         Speed = 300,
         SniperEnabled = false,
-        WhiteList = {"Leopard Fruit", "Dragon Fruit", "Dough Fruit", "Kitsune Fruit"},
         
-        -- Combat & Reverse Engineering
+        -- Combat & Core
         FastAttack = false,
         AutoClicker = false,
         MagneticMob = false,
         AttackDistance = 15,
-        AntiAFK = true
+        
+        -- Elite Farm
+        EliteFarm = false,
+        AutoStats = false,
+        TargetStat = "Melee",
+        WeaponType = "Melee"
     },
     Player = Players.LocalPlayer,
-    DebugLogs = {} 
+    LastRemoteTick = 0,
 }
 
--- [ 1. RÉCUPÉRATION MÉMOIRE (GETGC) ] -- 🧠
--- Méthode indétectable pour chasser le contrôleur sans 'require'
-local function GetCombatController()
-    local controller = nil
-    for _, v in pairs(getgc(true)) do
-        if type(v) == "table" and rawget(v, "activeController") then
-            controller = v.activeController
-            break
-        end
+-- [ 1. SECURITY & UTILS ] -- 🛡️
+local function SafeRemote(action, ...)
+    local now = tick()
+    if (now - Functions.LastRemoteTick) < 0.25 then task.wait(0.25) end
+    local remote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+    if remote then
+        Functions.LastRemoteTick = tick()
+        return remote:InvokeServer(action, ...)
     end
-    return controller
 end
 
--- [ 2. MODULE COMBAT ÉLITE (GHOST ATTACK) ] -- ⚔️
-function Functions:EnableFastAttack()
-    task.spawn(function()
-        while task.wait() do
-            if self.Config.FastAttack then
-                pcall(function()
-                    local controller = GetCombatController()
-                    if controller then
-                        -- Manipulation directe des délais en mémoire vive
-                        controller.attackInterval = 0
-                        controller.hitboxMagnitude = 60
-                    end
-                    
-                    -- No Animation : Arrêt propre des tracks de l'Humanoid
-                    local char = self.Player.Character
-                    local hum = char and char:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        for _, track in pairs(hum:GetPlayingAnimationTracks()) do
-                            if track.Name:find("Attack") or track.Name:find("Slash") then
-                                track:Stop()
-                            end
-                        end
-                    end
-                end)
+local function GetCombatController()
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" and rawget(v, "activeController") then return v.activeController end
+    end
+end
+
+-- [ 2. MOUVEMENT : SAFE-TWEEN ] -- ✈️
+function Functions:SafeTween(targetCFrame)
+    local char = self.Player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local distance = (targetCFrame.p - root.Position).Magnitude
+    if distance < 10 then root.CFrame = targetCFrame return end
+
+    local info = TweenInfo.new(distance / self.Config.Speed, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(root, info, {CFrame = targetCFrame})
+    
+    -- Ghost Mode pendant le vol
+    local noclip = RunService.Stepped:Connect(function()
+        for _, p in pairs(char:GetChildren()) do
+            if p:IsA("BasePart") then p.CanCollide = false end
+        end
+    end)
+
+    tween:Play()
+    tween.Completed:Wait()
+    noclip:Disconnect()
+end
+
+-- [ 3. DYNAMIC QUEST FINDER ] -- 🔍
+-- Cette fonction trouve la quête sans liste manuelle !
+function Functions:GetDynamicQuest()
+    local myLevel = self.Player.Data.Level.Value
+    local bestQuest, bestNpc, mobName, questPos
+    local maxLevelFound = -1
+
+    -- On cherche dans les NPCs de quêtes du jeu
+    for _, npc in pairs(Workspace.NPCs:GetChildren()) do
+        if npc.Name:find("Quest Giver") then
+            -- Extraction du niveau via le nom ou dialogue (logique Blox Fruit)
+            -- Note : Ici on utilise une logique de proximité/nom pour l'exemple
+            -- La plupart des Quest Givers ont des IDs de niveau croissants
+            local npcLevel = tonumber(npc.Name:match("%d+")) or 0 
+            
+            if myLevel >= npcLevel and npcLevel > maxLevelFound then
+                maxLevelFound = npcLevel
+                bestNpc = npc
             end
         end
-    end)
+    end
+    
+    -- Fallback sur le dernier NPC de quête valide
+    return bestNpc
 end
 
-function Functions:StartAutoClick()
+-- [ 4. MODULE ELITE FARM (IMMORTAL) ] -- 🌾
+function Functions:StartEliteFarm()
     task.spawn(function()
-        while task.wait(0.01) do -- Loop haute fréquence
-            if not self.Config.AutoClicker then break end
-            
-            pcall(function()
-                local char = self.Player.Character
-                if char and char:FindFirstChildOfClass("Tool") then
-                    local controller = GetCombatController()
-                    if controller then
-                        -- Appel direct de la fonction interne (bypass input)
-                        task.spawn(function() controller:attack() end)
-                    end
-                end
-            end)
-        end
-    end)
-end
+        while true do
+            task.wait(1)
+            if not self.Config.EliteFarm then continue end
 
--- [ 3. MAGNETIC-MOB (BOSS-SAFE & NOCLIP) ] -- 🧲
-function Functions:StartMagneticMob()
-    -- Activation du Noclip automatique pour éviter les morts par collision
-    task.spawn(function()
-        local noclipConn
-        noclipConn = RunService.Stepped:Connect(function()
-            if self.Config.MagneticMob and self.Player.Character then
-                for _, part in pairs(self.Player.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then part.CanCollide = false end
+            local char = self.Player.Character
+            if not char or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then
+                self.Player.CharacterAdded:Wait()
+                task.wait(2)
+                continue
+            end
+
+            -- Vérification quête active via l'UI du jeu
+            local questUI = self.Player.PlayerGui.Main:FindFirstChild("Quest")
+            if not questUI or not questUI.Visible then
+                -- 1. Trouver et aller au NPC
+                local targetNpc = self:GetDynamicQuest()
+                if targetNpc then
+                    self:SafeTween(targetNpc.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3))
+                    task.wait(0.5)
+                    -- Simulation d'acceptation (Adapté aux Remotes Blox Fruit)
+                    SafeRemote("StartQuest", "BanditQuest1", 1) -- Exemple, le nom est souvent lié au NPC
                 end
             else
-                noclipConn:Disconnect()
-            end
-        end)
-    end)
+                -- 2. Localiser les mobs de la quête
+                local targetMobName = questUI.Container.QuestTitle.Title.Text:match("Defeat %d+ (.+)")
+                -- Nettoyage du nom (ex: "Bandits (Lv. 5)" -> "Bandit")
+                targetMobName = targetMobName and targetMobName:gsub(" %s*%(.*%)", ""):sub(1, -2) 
 
-    task.spawn(function()
-        while task.wait() do
-            if not self.Config.MagneticMob then break end
-            
-            pcall(function()
-                local root = self.Player.Character and self.Player.Character.HumanoidRootPart
-                if not root then return end
-
-                local radius = self.Config.AttackDistance or 50
-                local enemyFolder = Workspace:FindFirstChild("Enemies") or Workspace
-                
-                for _, enemy in pairs(enemyFolder:GetChildren()) do
-                    local enRoot = enemy:FindFirstChild("HumanoidRootPart")
-                    local enHum = enemy:FindFirstChildOfClass("Humanoid")
-                    
-                    -- Filtre : Vivant + Pas un Boss (PV < 50k)
-                    if enRoot and enHum and enHum.Health > 0 and enHum.MaxHealth < 50000 then
-                        local dist = (enRoot.Position - root.Position).Magnitude
-                        
-                        if dist <= radius then
-                            enRoot.CanCollide = false
-                            enRoot.CFrame = root.CFrame * CFrame.new(0, 0, -5)
-                            enRoot.Velocity = Vector3.new(0,0,0)
-                        end
+                local targetMob = nil
+                for _, m in pairs(Workspace.Enemies:GetChildren()) do
+                    if m.Name:find(targetMobName or "") and m:FindFirstChild("HumanoidRootPart") then
+                        targetMob = m
+                        break
                     end
+                end
+
+                if targetMob then
+                    -- 3. Farm !
+                    self.Config.FastAttack = true
+                    self.Config.MagneticMob = true
+                    self.Config.AutoClicker = true
+                    
+                    -- Positionnement au-dessus du mob (Safe Farm)
+                    root = char.HumanoidRootPart
+                    root.CFrame = targetMob.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0)
+                    
+                    -- Auto-Stats
+                    if self.Config.AutoStats then
+                        local p = self.Player.Data.StatsPoints.Value
+                        if p > 0 then SafeRemote("AddPoint", self.Config.TargetStat, p) end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- [ 5. CORE LOOPS (RE-INJECTED) ] -- ⚔️
+function Functions:EnableFastAttack()
+    task.spawn(function()
+        while true do
+            task.wait()
+            if not self.Config.FastAttack then continue end
+            pcall(function()
+                local c = GetCombatController()
+                if c then c.attackInterval = 0 c.hitboxMagnitude = 60 end
+                for _, t in pairs(self.Player.Character.Humanoid:GetPlayingAnimationTracks()) do
+                    if t.Name:find("Attack") or t.Name:find("Slash") then t:Stop() end
                 end
             end)
         end
     end)
 end
 
--- [ 4. MOTEUR MOUVEMENT & SNIPER ] -- ✈️
-function Functions:GhostMove(targetCFrame, instant)
-    local root = self.Player.Character and self.Player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    if instant then root.CFrame = targetCFrame return end
-
-    local bv = Instance.new("BodyVelocity", root)
-    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bv.Velocity = (targetCFrame.p - root.Position).Unit * self.Config.Speed
-    task.wait(0.1)
-    bv:Destroy()
-end
-
-function Functions:InitFruitSniper()
-    Workspace.ChildAdded:Connect(function(child)
-        if self.Config.SniperEnabled and child:IsA("Tool") and child.Name:find("Fruit") then
-            local h = child:WaitForChild("Handle", 2)
-            if h then
-                self:GhostMove(h.CFrame, true)
-                firetouchinterest(self.Player.Character.HumanoidRootPart, h, 0)
-                firetouchinterest(self.Player.Character.HumanoidRootPart, h, 1)
-                ReplicatedStorage.Remotes.CommF_:InvokeServer("StoreFruit", child.Name, child)
-            end
-        end
-    end)
-end
-
--- [ 5. SMART SERVER HOP ] -- 🚀
-function Functions:SmartHop()
-    local sfUrl = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100"
-    local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(sfUrl)) end)
-    if success and result.data then
-        for _, s in pairs(result.data) do
-            if s.playing < s.maxPlayers and s.id ~= game.JobId then
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, self.Player)
-                return
-            end
-        end
-    end
-end
-
--- [ 6. EXPORTATION GLOBALE ] -- ✨
 _G.Functions = Functions
 return Functions
