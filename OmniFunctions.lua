@@ -8,8 +8,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
 local TweenService = game:GetService("TweenService")
 
 local Functions = {
@@ -27,8 +25,8 @@ local Functions = {
         -- Elite Farm
         EliteFarm = false,
         AutoStats = false,
-        TargetStat = "Melee",
-        WeaponType = "Melee"
+        TargetStat = "Melee", -- Stats: "Melee", "Defense", "Sword", "Gun", "Demon Fruit"
+        WeaponType = "Melee" -- Types: "Melee", "Sword", "Blox Fruit"
     },
     Player = Players.LocalPlayer,
     LastRemoteTick = 0,
@@ -41,7 +39,6 @@ local function GetCombatFramework()
     
     local success, result = pcall(function()
         local playerScripts = Functions.Player:WaitForChild("PlayerScripts", 10)
-        -- Protection contre l'erreur 'not a valid member'
         return playerScripts:WaitForChild("CombatFramework", 20)
     end)
 
@@ -49,10 +46,7 @@ local function GetCombatFramework()
         Functions.Framework = result
         return result
     else
-        -- Notification non-bloquante
-        if _G.Library then
-            _G.Library:Notify("Système", "⚠️ Framework introuvable (Chargement lent...)", Color3.fromRGB(255, 100, 100))
-        end
+        warn("⚠️ Framework introuvable (Chargement lent...)")
         return nil
     end
 end
@@ -72,7 +66,6 @@ end
 -- [ 2. REMOTE SECURITY : DEBOUNCE 0.1s ] -- 🛡️
 local function SafeRemote(action, ...)
     local now = tick()
-    -- Délai impératif de 0.1s pour éviter les détections
     if (now - Functions.LastRemoteTick) < 0.1 then
         task.wait(0.1 - (now - Functions.LastRemoteTick))
     end
@@ -101,7 +94,6 @@ function Functions:SafeTween(targetCFrame)
         local info = TweenInfo.new(distance / self.Config.Speed, Enum.EasingStyle.Linear)
         local tween = TweenService:Create(root, info, {CFrame = targetCFrame})
         
-        -- Noclip invisible pendant le trajet
         local noclip = RunService.Stepped:Connect(function()
             if char then
                 for _, p in pairs(char:GetChildren()) do
@@ -116,7 +108,23 @@ function Functions:SafeTween(targetCFrame)
     end)
 end
 
--- [ 4. DYNAMIC QUEST FINDER ] -- 🔍
+-- [ 4. AUTO-EQUIP WEAPON ] -- 🗡️
+function Functions:EquipWeapon()
+    pcall(function()
+        local char = self.Player.Character
+        if not char then return end
+
+        -- Cherche l'arme dans le sac à dos
+        for _, tool in pairs(self.Player.Backpack:GetChildren()) do
+            if tool:IsA("Tool") and tool.ToolTip == self.Config.WeaponType then
+                char.Humanoid:EquipTool(tool)
+                break
+            end
+        end
+    end)
+end
+
+-- [ 5. DYNAMIC QUEST FINDER ] -- 🔍
 function Functions:GetDynamicQuest()
     local myLevel = self.Player.Data.Level.Value
     local bestNpc = nil
@@ -136,53 +144,30 @@ function Functions:GetDynamicQuest()
     return bestNpc
 end
 
--- [ 5. MODULE ELITE FARM (IMMORTAL) ] -- 🌾
-function Functions:StartEliteFarm()
+-- [ 6. MAGNETIC MOB (REGROUPEMENT) ] -- 🧲
+function Functions:StartMagneticMob()
     task.spawn(function()
         while true do
-            task.wait(1)
-            if not self.Config.EliteFarm then continue end
+            task.wait(0.2)
+            if not self.Config.MagneticMob then continue end
 
             pcall(function()
                 local char = self.Player.Character
-                if not char or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then
-                    return 
-                end
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if not root then return end
 
-                local questUI = self.Player.PlayerGui.Main:FindFirstChild("Quest")
-                if not questUI or not questUI.Visible then
-                    -- 1. Aller chercher la quête
-                    local targetNpc = self:GetDynamicQuest()
-                    if targetNpc then
-                        self:SafeTween(targetNpc.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3))
-                        task.wait(0.5)
-                        SafeRemote("StartQuest", "BanditQuest1", 1) -- Adaptatif via Remote
-                    end
-                else
-                    -- 2. Farm les mobs
-                    local title = questUI.Container.QuestTitle.Title.Text
-                    local targetMobName = title:match("Defeat %d+ (.+)")
-                    targetMobName = targetMobName and targetMobName:gsub(" %s*%(.*%)", ""):sub(1, -2) 
-
-                    local targetMob = nil
-                    for _, m in pairs(Workspace.Enemies:GetChildren()) do
-                        if m.Name:find(targetMobName or "") and m:FindFirstChild("HumanoidRootPart") then
-                            targetMob = m
-                            break
-                        end
-                    end
-
-                    if targetMob then
-                        self.Config.FastAttack = true
-                        self.Config.MagneticMob = true
-                        
-                        -- Positionnement "Sky-Farm" sécurisé
-                        char.HumanoidRootPart.CFrame = targetMob.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0)
-                        
-                        -- Auto-Stats
-                        if self.Config.AutoStats then
-                            local p = self.Player.Data.StatsPoints.Value
-                            if p > 0 then SafeRemote("AddPoint", self.Config.TargetStat, p) end
+                for _, mob in pairs(Workspace.Enemies:GetChildren()) do
+                    local mobRoot = mob:FindFirstChild("HumanoidRootPart")
+                    local mobHum = mob:FindFirstChild("Humanoid")
+                    
+                    if mobRoot and mobHum and mobHum.Health > 0 then
+                        local distance = (mobRoot.Position - root.Position).Magnitude
+                        -- Si le mob est dans un rayon de 300 studs, on le téléporte devant le joueur
+                        if distance < 300 then
+                            mobRoot.CFrame = root.CFrame * CFrame.new(0, 0, -self.Config.AttackDistance)
+                            mobRoot.CanCollide = false
+                            mobHum.WalkSpeed = 0
+                            mobHum.JumpPower = 0
                         end
                     end
                 end
@@ -191,7 +176,73 @@ function Functions:StartEliteFarm()
     end)
 end
 
--- [ 6. CORE COMBAT LOOPS ] -- ⚔️
+-- [ 7. MODULE ELITE FARM (IMMORTAL) ] -- 🌾
+function Functions:StartEliteFarm()
+    task.spawn(function()
+        while true do
+            task.wait(0.5)
+            if not self.Config.EliteFarm then continue end
+
+            local success, err = pcall(function()
+                local char = self.Player.Character
+                -- SÉCURITÉ IMMORTALITÉ : Attend le respawn si le joueur meurt
+                if not char or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then
+                    self.Player.CharacterAdded:Wait()
+                    task.wait(2) -- Laisse le temps au jeu de charger le perso
+                    return 
+                end
+
+                self:EquipWeapon()
+
+                local questUI = self.Player.PlayerGui.Main:FindFirstChild("Quest")
+                if not questUI or not questUI.Visible then
+                    self.Config.MagneticMob = false -- Stop l'aimant pendant le trajet
+                    
+                    local targetNpc = self:GetDynamicQuest()
+                    if targetNpc then
+                        self:SafeTween(targetNpc.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3))
+                        task.wait(0.5)
+                        SafeRemote("StartQuest", "BanditQuest1", 1) -- À adapter dynamiquement
+                    end
+                else
+                    local title = questUI.Container.QuestTitle.Title.Text
+                    local targetMobName = title:match("Defeat %d+ (.+)")
+                    targetMobName = targetMobName and targetMobName:gsub(" %s*%(.*%)", ""):sub(1, -2) 
+
+                    local targetMob = nil
+                    for _, m in pairs(Workspace.Enemies:GetChildren()) do
+                        if m.Name:find(targetMobName or "") and m:FindFirstChild("HumanoidRootPart") and m.Humanoid.Health > 0 then
+                            targetMob = m
+                            break
+                        end
+                    end
+
+                    if targetMob then
+                        self.Config.FastAttack = true
+                        self.Config.AutoClicker = true
+                        self.Config.MagneticMob = true
+                        
+                        -- Positionnement "Sky-Farm" sécurisé (au dessus du mob)
+                        char.HumanoidRootPart.CFrame = targetMob.HumanoidRootPart.CFrame * CFrame.new(0, 20, 0)
+                        
+                        -- Auto-Stats Injector
+                        if self.Config.AutoStats then
+                            local p = self.Player.Data.StatsPoints.Value
+                            if p > 0 then SafeRemote("AddPoint", self.Config.TargetStat, p) end
+                        end
+                    else
+                        -- Si aucun mob de quête n'est trouvé, on attend leur respawn
+                        self.Config.MagneticMob = false
+                    end
+                end
+            end)
+            
+            if not success then warn("Erreur EliteFarm: " .. tostring(err)) end
+        end
+    end)
+end
+
+-- [ 8. CORE COMBAT LOOPS ] -- ⚔️
 function Functions:EnableFastAttack()
     task.spawn(function()
         while true do
@@ -199,9 +250,7 @@ function Functions:EnableFastAttack()
             if not self.Config.FastAttack then continue end
             
             pcall(function()
-                local framework = GetCombatFramework()
                 local c = GetCombatController()
-                
                 if c then 
                     c.attackInterval = 0 
                     c.hitboxMagnitude = 60 
@@ -234,6 +283,14 @@ function Functions:StartAutoClick()
     end)
 end
 
--- [ 7. EXPORTATION ] -- ✨
+-- [ 9. INITIALISATION GLOBALE ] -- ⚡
+function Functions:Init()
+    self:StartMagneticMob()
+    self:StartEliteFarm()
+    self:EnableFastAttack()
+    self:StartAutoClick()
+end
+
+-- EXPORTATION
 _G.Functions = Functions
 return Functions
