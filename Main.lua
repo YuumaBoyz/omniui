@@ -1,11 +1,11 @@
 --[[
     FICHIER : Main.lua
     PROJET  : OMNI-PROJECT | BLOX FRUITS
-    VERSION : v5.9.8 (STABLE UNIFIED)
-    PATCH   : UI Recovery + Aimbot Sync + Anti-Nil Guard
+    VERSION : v6.2.0 (STABLE MASTER UNIFIED)
+    PATCH   : Auto-Quest + Aimbot Sync + UI Recovery + Nil-Safety
 ]]
 
--- [ 1. INITIALISATION & ATTENTE SÉCURISÉE ] -- 🛡️
+-- [ 1. INITIALISATION & SECURITÉ ] -- 🛡️
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 local Player = game:GetService("Players").LocalPlayer
@@ -23,7 +23,7 @@ end
 
 if not SafeCharacterWait() then return end
 
--- [ 2. SYSTÈME DE RÉCUPÉRATION UI (ANTI-BLOCK) ] -- 🩹
+-- [ 2. SYSTÈME ANTI-CRASH UI ] -- 🩹
 local function PatchUI()
     pcall(function()
         local OmniUI = CoreGui:FindFirstChild("OmniUI_Elite") or CoreGui:FindFirstChildOfClass("ScreenGui")
@@ -39,34 +39,30 @@ local function PatchUI()
     end)
 end
 
--- [ 3. MODULES & CHARGEMENT ROBUSTE ] -- 📦
+-- [ 3. MODULES & CHARGEMENT ] -- 📦
 local function LoadModule(name, url)
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success then return result end
-    warn("⚠️ Erreur Module : " .. name)
-    return nil
+    local success, result = pcall(function() return loadstring(game:HttpGet(url))() end)
+    if not success then warn("⚠️ Échec du chargement : " .. name) end
+    return success and result or nil
 end
 
-local SaveManager = LoadModule("SaveManager", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniSaveManager.lua")
 local Physics = LoadModule("Physics", "https://raw.githubusercontent.com/YuumaBoyz/omniui/refs/heads/main/PhysicModule.lua")
+local SaveManager = LoadModule("SaveManager", "https://raw.githubusercontent.com/YuumaBoyz/omniui/main/OmniSaveManager.lua")
 _G.Aimbot = LoadModule("Aimbot", "https://raw.githubusercontent.com/YuumaBoyz/omniui/refs/heads/main/OmniAimbot.lua")
 
--- Initialisation des Globales
+-- Initialisation des Globales de Configuration
 _G.Functions = _G.Functions or {Config = {
-    Speed = 300, 
-    AttackIncrement = 3, 
-    AttackDistance = 10,
-    EliteFarm = false,
-    AutoStats = false,
-    TargetStat = "Melee",
-    MagneticMob = false,
+    AutoFarm = false,
+    AutoQuest = false,
+    SelectWeapon = "Melee",
+    Speed = 300,
+    AttackIncrement = 3,
     FastAttack = false,
-    AimbotEnabled = false
+    AimbotEnabled = false,
+    MagneticMob = false
 }}
 
-_G.Logger = _G.Logger or {AddLog = function(msg, color) print("[LOG]: " .. tostring(msg)) end, Init = function() end}
+_G.Logger = _G.Logger or {AddLog = function(msg, color) print("[OMNI]: "..tostring(msg)) end, Init = function() end}
 _G.Noclip = false
 _G.InfiniteGeppo = false
 
@@ -75,8 +71,8 @@ local UI = _G.Library
 if not UI then warn("❌ Library manquante.") return end
 
 -- [ 4. STRUCTURE DE L'INTERFACE ] -- 🎨
-local MainWin = UI:CreateWindow("OMNI-ELITE | v5.9.8 🛡️")
-PatchUI() -- Force le patch immédiatement
+local MainWin = UI:CreateWindow("OMNI-ELITE | v6.2.0 🛡️")
+PatchUI()
 
 local Tabs = {
     Combat   = MainWin:CreateTab("⚔️ Combat"),
@@ -86,7 +82,15 @@ local Tabs = {
     Settings = MainWin:CreateTab("⚙️ Paramètres")
 }
 
--- [ 5. INJECTION DES FONCTIONNALITÉS ] -- 🛠️
+-- [ 5. LOGIQUE DE QUÊTE (LEVEL-BASED) ] -- 📜
+local function GetQuestData()
+    local level = Player.Data.Level.Value
+    if level < 10 then return {"Bandit", "Bandit Quest 1", 1}
+    elseif level < 15 then return {"Monkey", "Monkey Quest 1", 1}
+    else return {"Bandit", "Bandit Quest 1", 1} end -- Valeur par défaut
+end
+
+-- [ 6. INJECTION DES FONCTIONNALITÉS ] -- 🛠️
 task.spawn(function()
     task.wait(0.5)
 
@@ -97,14 +101,29 @@ task.spawn(function()
         Tabs.Combat:CreateToggle("🎯 Aimbot Skill (Auto-Lock)", "AimbotEnabled", function(state)
             if _G.Aimbot then
                 _G.Aimbot.Enabled = state
-                _G.Logger:AddLog(state and "🎯 Aimbot Activé" or "⚪ Aimbot Désactivé", state and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(200, 200, 200))
+                _G.Logger:AddLog(state and "🎯 Aimbot Activé" or "⚪ Aimbot Désactivé")
             else
                 UI:Notify("Erreur", "Module Aimbot non chargé.")
             end
         end)
-
-        Tabs.Combat:CreateSlider("Attack Speed", "AttackIncrement", 1, 10, _G.Functions.Config.AttackIncrement, function(v) _G.Functions.Config.AttackIncrement = v end)
+        
         Tabs.Combat:CreateToggle("🧲 Magnetic Mob", "MagneticMob", function(state) _G.Functions.Config.MagneticMob = state end)
+    end)
+
+    -- --- SECTION : FARMING ---
+    pcall(function()
+        Tabs.Farming:CreateToggle("🔥 Start Auto-Farm", "AutoFarm", function(state) 
+            _G.Functions.Config.AutoFarm = state 
+            if state then _G.Logger:AddLog("🌾 Cycle de Farm Lancé", Color3.fromRGB(0, 255, 100)) end
+        end)
+        
+        Tabs.Farming:CreateToggle("📜 Auto-Quest (PNJ)", "AutoQuest", function(state) 
+            _G.Functions.Config.AutoQuest = state 
+        end)
+
+        Tabs.Farming:CreateDropdown("Arme à utiliser", {"Melee", "Sword", "Fruit"}, function(v) 
+            _G.Functions.Config.SelectWeapon = v 
+        end)
     end)
 
     -- --- SECTION : MOUVEMENT ---
@@ -122,8 +141,6 @@ task.spawn(function()
             end
         end)
         
-        Tabs.Move:CreateToggle("☁️ Infinite Geppo", "InfGeppo", function(state) _G.InfiniteGeppo = state end)
-        
         Tabs.Move:CreateToggle("👻 Noclip (Ghost)", "Noclip", function(state) _G.Noclip = state end)
     end)
 
@@ -136,34 +153,58 @@ task.spawn(function()
     end)
 
     _G.Logger:Init(MainWin.MainFrame)
-    _G.Logger:AddLog("✅ ***Omni-Elite v5.9.8 Synced***", Color3.fromRGB(0, 255, 150))
+    _G.Logger:AddLog("✅ ***Omni-Elite Unified READY***", Color3.fromRGB(0, 255, 150))
 end)
 
--- [ 6. LOGIQUE DE SÉCURITÉ & SERVICES ] -- ✨
-RunService.Stepped:Connect(function()
-    -- Geppo Nil-Safe
-    if _G.InfiniteGeppo and Player.Character then
-        local hum = Player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end) end
-    end
-    
-    -- Noclip Nil-Safe
-    if _G.Noclip and Player.Character then
-        for _, part in pairs(Player.Character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
-    end
-end)
-
--- [ 7. CHARGEMENT FINAL ] -- 🚀
+-- [ 7. BOUCLE PRINCIPALE (CORE EXECUTION) ] -- 🔄
 task.spawn(function()
-    if SaveManager then
-        local data = SaveManager:Load()
-        if data then 
-            for k, v in pairs(data) do _G.Functions.Config[k] = v end 
+    while task.wait() do
+        if _G.Functions.Config.AutoFarm then
+            pcall(function()
+                local questInfo = GetQuestData()
+                local myQuest = Player.PlayerGui.Main:FindFirstChild("Quest")
+
+                -- 1. Auto-Quest Check
+                if _G.Functions.Config.AutoQuest and (not myQuest or not myQuest.Visible) then
+                    _G.Logger:AddLog("Cherche Quête : " .. questInfo[2])
+                    -- Optionnel : Code de téléportation vers le PNJ ici
+                end
+
+                -- 2. Recherche & Ciblage Mob
+                for _, mob in pairs(workspace.Enemies:GetChildren()) do
+                    if (mob.Name == questInfo[1] or not _G.Functions.Config.AutoQuest) and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
+                        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                            -- Téléportation de Farm
+                            Player.Character.HumanoidRootPart.CFrame = mob.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0)
+                            
+                            -- Équipement automatique
+                            local tool = Player.Backpack:FindFirstChild(_G.Functions.Config.SelectWeapon) or Player.Character:FindFirstChild(_G.Functions.Config.SelectWeapon)
+                            if tool and not Player.Character:FindFirstChild(tool.Name) then
+                                Player.Character.Humanoid:EquipTool(tool)
+                            end
+
+                            -- Synchronisation Aimbot
+                            if _G.Aimbot and _G.Aimbot.Enabled then 
+                                _G.Aimbot.Target = mob 
+                            end
+                            break
+                        end
+                    end
+                end
+            end)
         end
     end
-    if _G.Aimbot then _G.Aimbot.Enabled = _G.Functions.Config.AimbotEnabled end
 end)
 
-UI:Notify("Système", "Protocole ***Omni-Elite v5.9.8*** stable. 🚀")
+-- [ 8. SERVICES & ANTI-NIL GUARDS ] -- ✨
+RunService.Stepped:Connect(function()
+    pcall(function()
+        if _G.Noclip and Player.Character then
+            for _, part in pairs(Player.Character:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
+        end
+    end)
+end)
+
+UI:Notify("Système", "Protocole ***Omni-Elite v6.2.0*** opérationnel. 🚀")
