@@ -1,8 +1,8 @@
 --[[
     FICHIER : Main.lua
     PROJET  : OMNI-PROJECT | BLOX FRUITS
-    VERSION : v5.9.5 (ULTIMATE UI RECOVERY)
-    MISE À JOUR : Sync OmniSaveManager + Auto-Load Logic
+    VERSION : v5.9.5 (ULTIMATE UI RECOVERY + HOTFIX)
+    MISE À JOUR : Sync OmniSaveManager + UI Fix + Anti-Error Bridge
 ]]
 
 -- [ 1. INITIALISATION & ATTENTE SÉCURISÉE ] -- 🛡️
@@ -11,6 +11,7 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 local Player = game:GetService("Players").LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 
 local function SafeCharacterWait()
     local timeout = 0
@@ -68,6 +69,21 @@ end
 -- [ 3. STRUCTURE DE L'INTERFACE ] -- 🎨
 local MainWin = UI:CreateWindow("OMNI-ELITE | v5.9.5 🛡️")
 
+-- ### HOT-FIX : RECOVERY DES ELEMENTS MANQUANTS ### 🩹
+-- Ce bloc corrige l'erreur "BlocksInteraction" qui vide tes onglets.
+pcall(function()
+    local OmniUI = CoreGui:FindFirstChild("OmniUI_Elite")
+    if OmniUI then
+        local Canvas = OmniUI:FindFirstChildOfClass("CanvasGroup")
+        if Canvas and not Canvas:FindFirstChild("BlocksInteraction") then
+            local Fixer = Instance.new("Frame")
+            Fixer.Name = "BlocksInteraction"
+            Fixer.Visible = false
+            Fixer.Parent = Canvas
+        end
+    end
+end)
+
 local Tabs = {
     Combat   = MainWin:CreateTab("⚔️ Combat"),
     Farming  = MainWin:CreateTab("🌾 Farming"),
@@ -103,8 +119,9 @@ task.spawn(function()
             _G.Functions.Config.FruitSniper = state
             if state then _G.Logger:AddLog("🍎 Sniper activé", Color3.fromRGB(0, 255, 255)) end
         end)
-        Tabs.Fruits:CreateButton("🍎 Collecter Fruits (Instant)", function()
-            pcall(function() _G.SafeRemoteFire("CollectedDragonEgg", true) end)
+        Tabs.Fruits:CreateButton("🍎 Collecter Fruits (Update Requis)", function()
+            -- Sécurisation contre le crash console "CollectedDragonEgg"
+            UI:Notify("Système", "Le Remote 'CollectedDragonEgg' est actuellement obsolète.")
         end)
     end)
 
@@ -124,11 +141,11 @@ task.spawn(function()
 
     -- --- SECTION : PARAMÈTRES ---
     pcall(function()
-        Tabs.Settings:CreateButton("🔄 Server Hop (Recherche Serveur)", function()
+        Tabs.Settings:CreateButton("🔄 Server Hop", function()
             if _G.Functions.SmartHop then _G.Functions.SmartHop() else UI:Notify("Erreur", "Module ServerHop absent.") end
         end)
-        Tabs.Settings:CreateButton("⌨️ Modifier Keybind", function()
-            UI:Notify("Keybind", "Appuyez sur une touche pour l'UI...")
+        Tabs.Settings:CreateButton("⌨️ Keybind UI", function()
+            UI:Notify("Keybind", "Appuyez sur une touche...")
             local connection; connection = UserInputService.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.Keyboard then
                     MainWin:SetKeybind(input.KeyCode)
@@ -137,25 +154,23 @@ task.spawn(function()
                 end
             end)
         end)
-        -- Synchronisation directe avec le module SaveManager
         Tabs.Settings:CreateButton("💾 Sauvegarder Config", function() 
             SaveManager:Save(_G.Functions.Config) 
-            UI:Notify("Sauvegarde", "Configuration enregistrée dans OmniElite_Config.json !")
+            UI:Notify("Sauvegarde", "Configuration enregistrée !")
         end)
     end)
 
-    -- Initialisation des Logs dans l'UI
+    -- Initialisation des Logs
     pcall(function()
         _G.Logger:Init(MainWin.MainFrame)
         _G.Logger:AddLog("✅ ***Moteur v5.9.5 injecté***", Color3.fromRGB(0, 255, 150))
-        _G.Logger:AddLog("💾 ***Config chargée***", Color3.fromRGB(200, 200, 255))
+        _G.Logger:AddLog("🛡️ ***Hot-Fix appliqué***", Color3.fromRGB(255, 150, 0))
     end)
 end)
 
--- [ 5. DÉMARRAGE DES SERVICES & CHARGEMENT AUTO ] -- ✨
+-- [ 5. DÉMARRAGE & CHARGEMENT AUTO ] -- ✨
 task.spawn(function()
     pcall(function()
-        -- Chargement de la config via OmniSaveManager
         local savedData = SaveManager:Load()
         if savedData then 
             for key, value in pairs(savedData) do 
@@ -163,14 +178,13 @@ task.spawn(function()
             end 
         end
         
-        -- Lancement de la logique de combat/farm
         if _G.Functions.Init then 
             _G.Functions:Init() 
         end
     end)
 end)
 
--- Boucle Physique (Stepped pour éviter les tremblements)
+-- Boucles de Services
 RunService.Stepped:Connect(function()
     if _G.InfiniteGeppo and Player.Character then
         pcall(function() Player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end)
